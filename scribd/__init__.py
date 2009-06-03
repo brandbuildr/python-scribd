@@ -18,7 +18,7 @@ from multipart import post_multipart
 
 
 __author__ = 'Arkadiusz Wahlig'
-__version__ = '1.0.0'
+__version__ = '0.9.0'
 
 HOST = 'api.scribd.com'
 PORT = 80
@@ -383,11 +383,3 @@ api = User()
 
 logger = logging.getLogger('scribd')
 logger.addHandler(NullHandler())
-
-#======================================================
-# EOF
-
-
-config('7c8or6lrbtg0dlgbue0eu', 'sec-18sjrpjzicax1teww3ahmlz5gf')
-
-logging.basicConfig(level=logging.DEBUG)
