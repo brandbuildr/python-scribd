@@ -13,7 +13,7 @@ http://www.scribd.com/developers
 Copyright (c) 2009 Arkadiusz Wahlig <arkadiusz.wahlig@gmail.com>
 '''
 
-__version__ = '0.9.4'
+__version__ = '0.9.5'
 
 __all__ = ['NotReadyError', 'MalformedResponseError', 'ResponseError',
            'Resource', 'User', 'CustomUser', 'Document', 'login',
@@ -119,10 +119,8 @@ class Resource(object):
         is a xmlparse.Element object whose subelements are to be converted
         to this object's attributes.
         '''
-        # Omit the self.__setattr__() method.
-        object.__setattr__(self, '_attributes', {})
-        object.__setattr__(self, '_changed_attributes', {})
-        # Now the self.__setattr__() method is safe.
+        self.__dict__['_attributes'] = {}
+        self.__dict__['_set_attributes'] = {}
         if xml is not None:
             self._load_attributes(xml)
             
@@ -130,19 +128,8 @@ class Resource(object):
         '''Returns a dictionary with the resource attributes.
         '''
         attrs = self._attributes.copy()
-        attrs.update(self._changed_attributes)
+        attrs.update(self._set_attributes)
         return attrs
-        
-    def update_attributes(self, **fields):
-        '''Updates the resource attributes with the keyword
-        arguments. Raises a TypeError if unknown arguments
-        are encountered.
-        '''
-        for name, value in fields.items():
-            if name in self._attributes:
-                self._changed_attributes[name] = value
-            else:
-                raise TypeError('unknown attribute: %s' % repr(name))
         
     def _send_request(self, method, **fields):
         '''Sends a request to the HOST and returns the response.
@@ -167,12 +154,13 @@ class Resource(object):
                 except (UnicodeError, ValueError):
                     pass
             self._attributes[element.name] = text
+            self._set_attributes.pop(element.name, None)
             
     def __getattr__(self, name):
         if name == 'id':
             return self._get_id()
         try:
-            return self._changed_attributes[name]
+            return self._set_attributes[name]
         except KeyError:
             try:
                 return self._attributes[name]
@@ -181,8 +169,8 @@ class Resource(object):
                                      (repr(self.__class__.__name__), repr(name)))
             
     def __setattr__(self, name, value):
-        if name in self._attributes:
-            self._changed_attributes[name] = value
+        if name not in self.__dict__ and not name.startswith('_'):
+            self._set_attributes[name] = value
         else:
             object.__setattr__(self, name, value)         
 
@@ -381,9 +369,7 @@ class User(Resource):
             xml = self._send_request('docs.uploadFromUrl', url=file, **kwargs)
         else:
             xml = self._send_request('docs.upload', file=file, **kwargs)
-        doc = Document(xml, self)
-        doc.load()
-        return doc
+        return Document(xml, self)
 
     def get_autologin_url(self, next_url=''):
         '''Creates and returns an URL that logs the user in when visited and
@@ -418,7 +404,7 @@ class CustomUser(User):
     
     def __init__(self, my_user_id):
         User.__init__(self)
-        self.my_user_id = my_user_id
+        self.__dict__['my_user_id'] = my_user_id
         
     def _send_request(self, method, **fields):
         '''Sends a request to the HOST and returns the response.
@@ -456,7 +442,7 @@ class Document(Resource):
                
     def __init__(self, xml, owner):
         Resource.__init__(self, xml)
-        self.owner = owner
+        self.__dict__['owner'] = owner
 
     def _send_request(self, method, **fields):
         '''Sends a request to the HOST and returns the response.
@@ -512,10 +498,11 @@ class Document(Resource):
         Requires the document owner to be the user that uploaded this
         document.
         '''
-        if self._changed_attributes:
+        if self._set_attributes:
             self._send_request('docs.changeSettings', doc_ids=self.doc_id,
-                               **self._changed_attributes)
-            self._changed_attributes.clear()
+                               **self._set_attributes)
+            self._attributes.update(self._set_attributes)
+            self._set_attributes.clear()
             return True
         return False
 
