@@ -86,7 +86,7 @@ class Element(object):
 
 def parse(xml):
     '''Parses an xml and returns the Element object of the root element.
-    xml may be either a string or a file-a-like object.
+    xml may be either a string or a file-alike object.
     '''
     if isinstance(xml, str):
         dom = minidom.parseString(xml)

@@ -4,12 +4,16 @@ This is a simple yet powerful library for the Scribd API, allowing to write
 Python applications or websites that upload, convert, display, search, and
 control documents in many formats.
 
-For more information on the Scribd platform, visit http://www.scribd.com/about.
+For more information on the Scribd platform, visit:
+http://www.scribd.com/about
+
+The underlying API documentation can be found at:
+http://www.scribd.com/developers
 
 Copyright (c) 2009 Arkadiusz Wahlig <arkadiusz.wahlig@gmail.com>
 '''
 
-__version__ = '0.9.1'
+__version__ = '0.9.2'
 
 
 import sys
@@ -68,8 +72,8 @@ class MalformedResponseError(Exception):
 class ResponseError(Exception):
     '''Exception raised if HOST responses with an error message.
     
-    Refer to the API documentation for explanation of the error codes:
-    http://www.scribd.com/developers
+    Refer to the API documentation (Error codes section of various methods)
+    for explanation of the error codes.
     '''
     def __init__(self, errno, errstr):
         Exception.__init__(self, int(errno), str(errstr))
@@ -85,10 +89,13 @@ class Resource(object):
     Defines a set of private methods for attributes (fields) management
     and object comparison.
     '''
+    # Mapping defining fields extracted from the xml responses.
     # field_name => (field_type, default_value)
     # or
     # field_name => field_type
     # (in which case default value is field_type(''))
+    # Default value is used if the field is defined in xml but empty (<field/>).
+    # Empty string may not always be the right thing (for example if type is int).
     _fields = {}
 
     def __init__(self, elem=None):
@@ -100,9 +107,14 @@ class Resource(object):
         self._set_fields(elem)
 
     def _send_request(self, method, **fields):
+        '''Sends a request to the HOST and returns the response.
+        '''
         return send_request(method, **fields)
 
     def _iter_fields(self):
+        '''Returns a generator iterating over _fields, yielding (name, type,
+        default) for each item.
+        '''
         for name, cast in self._fields.items():
             if isinstance(cast, tuple):
                 cast, default = cast
@@ -111,6 +123,9 @@ class Resource(object):
             yield name, cast, default
 
     def _set_fields(self, elem=None):
+        '''Iterates over _fields and sets the attributes based on the xml
+        element. Attributes not defined by the element are deleted.
+        '''
         for name, cast, default in self._iter_fields():
             if elem is not None and name in elem:
                 value = elem.get(name).value
@@ -122,9 +137,9 @@ class Resource(object):
         self._changed_fields()
 
     def _changed_fields(self):
-        '''Compares the current fields values with the ones stored in
+        '''Compares the current attributes with the ones stored in
         self._values and returns a mapping of the ones that differ.
-        Sets the current values in self._values afterwards.
+        Stores the current values in self._values afterwards.
         '''
         fields = {}
         for name, cast, default in self._iter_fields():
@@ -157,7 +172,7 @@ class Resource(object):
 class User(Resource):
     '''Represents a Scribd user.
 
-    Use login or signin functions to instantiate.
+    Don't instantiate directly, use login() or signup() functions instead.
     '''
     _fields = {'session_key': str,
                'user_id': str,
@@ -165,20 +180,23 @@ class User(Resource):
                'name': unicode}
 
     def _send_request(self, method, **fields):
+        '''Sends a request to the HOST and returns the response.
+        '''
+        # Add the session key to the call but only if this isn't the
+        # default (API account) user.
         if hasattr(self, 'session_key'):
-            # Add the session_key field to limit the executed
-            # method to the current user.
             fields['session_key'] = self.session_key
         return Resource._send_request(self, method, **fields)
 
     def all(self, **kwargs):
-        '''Returns a list of all user documents
+        '''Returns a list of all user documents.
         '''
         elem = self._send_request('docs.getList', **kwargs)
         return [Document(result, self) for result in elem.get('resultset')]
 
     def xall(self, **kwargs):
-        '''Returns a generator object iterating over all user documents and creating Document objects on demand.
+        '''Returns a generator object iterating over all user documents
+        and creating Document objects on demand.
         '''
         while True:
             elem = self._send_request('docs.getList', **kwargs)
@@ -198,25 +216,63 @@ class User(Resource):
         return Document(elem, self)
 
     def find(self, query, **kwargs):
-        kwargs['num_results'] = kwargs.pop('limit', None)
-        kwargs['num_start'] = kwargs.pop('offset', None)
+        '''Searches for documents and returns a list of them.
+        
+        Refer to the API documentation (docs.search method) for
+        possible parameters. You may use limit and offset parameters
+        instead of num_results and num_start. Note that initial
+        num_start value is 1 whereas offset is 0.
+        
+        Note that only for scope='user' (which is the default), the
+        returned documents will have the owner attribute set to this
+        user object. Otherwise the user cannot be determined so the
+        owner attribute will be None. You can set it later if you
+        want.
+        '''
+        if 'limit' in kwargs:
+            kwargs['num_results'] = kwargs['limit']
+        if 'offset' in kwargs:
+            kwargs['num_start'] = kwargs['offset'] + 1
         elem = self._send_request('docs.search', query=query, **kwargs)
-        return [Document(result, self) for result in elem.get('result_set')]
+        owner = None
+        if kwargs.get('scope', 'user') == 'user':
+            owner = self
+        return [Document(result, owner) for result in elem.get('result_set')]
 
     def xfind(self, query, **kwargs):
-        kwargs['num_results'] = kwargs.pop('limit', None)
-        kwargs['num_start'] = kwargs.pop('offset', None)
+        '''Returns a generator object searching for documents and iterating
+        over them.
+        
+        Always iterates over all found documents. Takes the same arguments
+        as find() with the exception of limit/num_results which tells how
+        many results will be acquired from a single API call. If all matches
+        from a single call are processed, the call is repeated for the next
+        chunk od results. The happens until all found documents are processed.
+        If you're not interested in all results, stop the iterator earlier.
+        '''
+        if 'limit' in kwargs:
+            kwargs['num_results'] = kwargs['limit']
+        if 'offset' in kwargs:
+            kwargs['num_start'] = kwargs['offset'] + 1
+        owner = None
+        if kwargs.get('scope', 'user') == 'user':
+            owner = self
         while True:
             elem = self._send_request('docs.search', query=query, **kwargs)
             results = elem.get('result_set')
             for result in results:
-                yield Document(result, self)
+                yield Document(result, owner)
             kwargs['num_start'] = int(results.firstResultPosition) + \
                                    int(results.totalResultsReturned)
             if kwargs['num_start'] >= int(results.totalResultsAvailable):
                 break
 
     def upload(self, file, **kwargs):
+        '''Uploads a new document and returns a document object.
+        
+        file is either a file-alike object providing read() method and name
+        attribute or a string defining the document's URL.
+        '''
         if isinstance(file, str):
             elem = self._send_request('docs.uploadFromUrl', url=file, **kwargs)
         else:
@@ -226,12 +282,17 @@ class User(Resource):
         return doc
 
     def get_autologin_url(self, next_url, **kwargs):
+        '''Creates and returns an URL that logs the user in when visited and
+        redirects to the specified URL.
+        
+        The specified URL must point to scribd.com domain.
+        '''
         elem = self._send_request('user.getAutoSigninUrl', next_url=next_url,
                                   **kwargs)
         return str(elem.get('url').value)
 
     def _get_id(self):
-        return getattr(self, 'user_id', 'api')
+        return getattr(self, 'user_id', 'default')
 
     id = property(_get_id)
 
@@ -252,10 +313,14 @@ class CustomUser(User):
         self.my_user_id = my_user_id
         
     def _send_request(self, method, **fields):
+        '''Sends a request to the HOST and returns the response.
+        '''
         fields['my_user_id'] = self.my_user_id
         return User._send_request(self, method, **fields)
 
     def get_autologin_url(self, next_url, **kwargs):
+        '''This method is not supported by custom users.
+        '''
         raise NotImplementedError('autologin not supported by custom users')
 
     def _get_id(self):
@@ -265,6 +330,24 @@ class CustomUser(User):
 
 
 class Document(Resource):
+    '''Represents a Scribd document.
+    
+    Don't instantiate directly, use methods of the user objects instead.
+    
+    Objects have a owner attribute pointing to the owning user object.
+    The owner may be unknown in which case the it is None and may be set
+    by you if you know the user.
+    
+    Document objects provide a number of attributes representing the
+    document properties. Refer to the API documentation (Result explanation
+    section of the docs.getList method) for their names and meaning.
+    
+    If the document belongs to the current APi account or the owner
+    is a valid logged in user, the load() method can be used to load
+    extended properties. Refer to the API documentation (Result
+    explanation section of the docs.getSettings method) for their names
+    and meaning.
+    '''
     _fields = {'doc_id': str,
                'title': unicode,
                'description': unicode,
@@ -285,33 +368,49 @@ class Document(Resource):
 
     def __init__(self, elem, owner):
         Resource.__init__(self, elem)
-        if not isinstance(owner, User):
-            raise ValueError('owner must be a User, not %s' %
-                              type(owner).__name__)
         self.owner = owner
 
     def _send_request(self, method, **fields):
-        return self.owner._send_request(method, **fields)
+        '''Sends a request to the HOST and returns the response.
+        '''
+        if self.owner is not None:
+            return self.owner._send_request(method, **fields)
+        return Resource._send_request(self, method, **fields)
 
     def get_conversion_status(self):
+        '''Obtains and returns the document conversion status.
+        Refer to the API documentation for values explanation.
+        '''
         elem = self._send_request('docs.getConversionStatus', doc_id=self.doc_id)
-        self.conversion_status = str(elem.get('conversion_status').value)
-        return self.conversion_status
+        return str(elem.get('conversion_status').value)
 
     def delete(self):
-        elem = self._send_request('docs.delete', doc_id=self.doc_id)
-        return (elem.stat == 'ok')
+        '''Deletes the document from Scribd service.
+        '''
+        self._send_request('docs.delete', doc_id=self.doc_id)
 
-    def get_url(self, format='original'):
+    def get_download_url(self, format='original'):
+        '''Returns an URL pointing to the document file.
+        The argument specifies the file format. Refer to the API documentation
+        for possible values.
+        '''
         elem = self._send_request('docs.getDownloadUrl', doc_id=self.doc_id,
                                   doc_type=format)
         return str(elem.get('download_link').value)
 
     def load(self):
+        '''If the document belongs to the owner set of if there is no owner
+        and it belongs to the current API account, this method populates
+        the extended attributes of the document with their values. Otherwise
+        a ResponseError is raised with insufficient privileges message.
+        '''
         elem = self._send_request('docs.getSettings', doc_id=self.doc_id)
         self._set_fields(elem)
 
     def save(self):
+        '''Saves the changed attributes.
+        This can be done only if the document owner has sufficent priviledges.
+        '''
         fields = self._changed_fields()
         if fields:
             self._send_request('docs.changeSettings', doc_ids=self.doc_id,
@@ -399,22 +498,17 @@ def send_request(method, **fields):
 
 
 def login(username, password):
-    '''Logs the given Scribd user in. The scribd.user variable is set to the
-    user object. Returns the user object.
+    '''Logs the given Scribd user in and returns the corresponding user object.
     '''
-    global user
-    user = User(send_request('user.login', username=username, password=password))
-    return user
+    return User(send_request('user.login', username=username, password=password))
 
 
 def signup(username, password, email, name=None):
-    '''Creates a new Scribd user and logs him in. The scribd.user variable
-    is set to the user object. Returns the user object.
+    '''Creates a new Scribd user and returns the corresponding user object.
+    The user is already logged in.
     '''
-    global user
-    user = User(send_request('user.signup', username=username, password = password,
+    return User(send_request('user.signup', username=username, password = password,
                              email=email, name=name))
-    return user
 
 
 def update(docs, **fields):
@@ -459,8 +553,9 @@ def config(key, secret):
     ns['secret'] = secret
 
 
-# The user for which the API account set using config() has been registered.
-api = User()
+# The default API account user. Note that it doesn't support standard
+# user attributes like username or id.
+user = User()
 
 
 # Create a scribd logger. If logging is enabled by the application, scribd
