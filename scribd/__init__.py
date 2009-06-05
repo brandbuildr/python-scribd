@@ -2,7 +2,7 @@
 
 This is a simple yet powerful library for the Scribd API, allowing to write
 Python applications or websites that upload, convert, display, search, and
-control documents in many formats.
+control documents in many formats using the Scribd platform.
 
 For more information on the Scribd platform, visit:
 http://www.scribd.com/about
@@ -13,38 +13,55 @@ http://www.scribd.com/developers
 Copyright (c) 2009 Arkadiusz Wahlig <arkadiusz.wahlig@gmail.com>
 '''
 
-__version__ = '0.9.2'
+__version__ = '0.9.4'
 
+__all__ = ['NotReadyError', 'MalformedResponseError', 'ResponseError',
+           'Resource', 'User', 'CustomUser', 'Document', 'login',
+           'signup', 'update', 'find', 'xfind', 'config', 'api_user']
+           
+__author__ = 'Arkadiusz Wahlig <arkadiusz.wahlig@gmail.com>'
+
+
+#
+# Imports
+#
 
 import sys
 import httplib
 import urllib
 import logging
-# The md5 module is deprecated since Python 2.5.
+
+# Both md5 module (deprecated since Python 2.5) and hashlib provide the
+# same md5 object.
 if sys.version_info >= (2, 5):
     from hashlib import md5
 else:
     from md5 import md5
 
-from multipart import post_multipart
-import xmlparse
+from scribd.multipart import post_multipart
+from scribd import xmlparse
 
+
+#
+# Constants
+#
 
 # Scribd HTTP API host and port.
 HOST = 'api.scribd.com'
 PORT = 80
 
-
-# HTTP API request path.
+# Scribd HTTP API request path.
 REQUEST_PATH = '/api'
 
+# API key and secret as given by Scribd after registering for an API account.
+# Set both after importing, either directly or using the config() function.
+api_key = ''
+api_secret = ''
 
-# API key and secret key as given by scribd.com after registering for
-# an API account. Set both after importing, either directly or using
-# the config() function.
-key = ''
-secret = ''
 
+#
+# Exceptions
+#
 
 class NullHandler(logging.Handler):
     '''Empty logging handler used to prevent a warning if the application
@@ -55,8 +72,8 @@ class NullHandler(logging.Handler):
 
 
 class NotReadyError(Exception):
-    '''Exception raised if operation is attempted before the key and secret
-    global variables are set.
+    '''Exception raised if operation is attempted before the API key and
+    secret are set.
     '''
     def __init__(self, errstr):
         Exception.__init__(self, str(errstr))
@@ -82,75 +99,92 @@ class ResponseError(Exception):
         return '[Errno %d] %s' % (self[0], self[1])
 
 
-class Resource(object):
-    '''Base class for remote objects that the Scribd API lets to interact
-    with. Never used directly, interact with the subclasses instead.
-    
-    Defines a set of private methods for attributes (fields) management
-    and object comparison.
-    '''
-    # Mapping defining fields extracted from the xml responses.
-    # field_name => (field_type, default_value)
-    # or
-    # field_name => field_type
-    # (in which case default value is field_type(''))
-    # Default value is used if the field is defined in xml but empty (<field/>).
-    # Empty string may not always be the right thing (for example if type is int).
-    _fields = {}
+#
+# Classes
+#
 
-    def __init__(self, elem=None):
-        '''Instantiates an object of the class. If elem is not None, it
+class Resource(object):
+    '''Base class for remote objects that the Scribd API allows
+    to interact with. This class is never instantiated, only
+    subclassed.
+    
+    Every object features a set of resource attributes that are
+    stored and managed by the Scribd platform. They are accessed
+    and used like any other Python object attributes but are
+    stored in a separate container.
+    '''
+
+    def __init__(self, xml=None):
+        '''Instantiates an object of the class. If "xml" is not None, it
         is a xmlparse.Element object whose subelements are to be converted
         to this object's attributes.
         '''
-        self._values = {}
-        self._set_fields(elem)
-
+        # Omit the self.__setattr__() method.
+        object.__setattr__(self, '_attributes', {})
+        object.__setattr__(self, '_changed_attributes', {})
+        # Now the self.__setattr__() method is safe.
+        if xml is not None:
+            self._load_attributes(xml)
+            
+    def get_attributes(self):
+        '''Returns a dictionary with the resource attributes.
+        '''
+        attrs = self._attributes.copy()
+        attrs.update(self._changed_attributes)
+        return attrs
+        
+    def update_attributes(self, **fields):
+        '''Updates the resource attributes with the keyword
+        arguments. Raises a TypeError if unknown arguments
+        are encountered.
+        '''
+        for name, value in fields.items():
+            if name in self._attributes:
+                self._changed_attributes[name] = value
+            else:
+                raise TypeError('unknown attribute: %s' % repr(name))
+        
     def _send_request(self, method, **fields):
         '''Sends a request to the HOST and returns the response.
         '''
         return send_request(method, **fields)
-
-    def _iter_fields(self):
-        '''Returns a generator iterating over _fields, yielding (name, type,
-        default) for each item.
+        
+    def _load_attributes(self, xml):
+        '''Adds resource attributes to this object based on xml
+        response from the HOST.
         '''
-        for name, cast in self._fields.items():
-            if isinstance(cast, tuple):
-                cast, default = cast
-            else:
-                default = cast('')
-            yield name, cast, default
-
-    def _set_fields(self, elem=None):
-        '''Iterates over _fields and sets the attributes based on the xml
-        element. Attributes not defined by the element are deleted.
-        '''
-        for name, cast, default in self._iter_fields():
-            if elem is not None and name in elem:
-                value = elem.get(name).value
-                if value is not None:
-                    default = cast(value)
-                setattr(self, name, default)
-            elif hasattr(self, name):
-                delattr(self, name)
-        self._changed_fields()
-
-    def _changed_fields(self):
-        '''Compares the current attributes with the ones stored in
-        self._values and returns a mapping of the ones that differ.
-        Stores the current values in self._values afterwards.
-        '''
-        fields = {}
-        for name, cast, default in self._iter_fields():
-            value = getattr(self, name, default)
-            if value != self._values.get(name, default):
-                fields[name] = value
-        if fields:
-            self._values = {}
-            for name, cast, default in self._iter_fields():
-                self._values[name] = getattr(self, name, default)
-        return fields
+        for element in xml:
+            text = element.text
+            if text is not None:
+                try:
+                    type = element.attrs.get('type', None)
+                    if type == 'integer':
+                        text = int(text)
+                    elif type == 'float':
+                        text = float(text)
+                    else:
+                        text = str(text)
+                except (UnicodeError, ValueError):
+                    pass
+            self._attributes[element.name] = text
+            
+    def __getattr__(self, name):
+        if name == 'id':
+            return self._get_id()
+        try:
+            return self._changed_attributes[name]
+        except KeyError:
+            try:
+                return self._attributes[name]
+            except KeyError:
+                raise AttributeError('%s object has no attribute %s' % \
+                                     (repr(self.__class__.__name__), repr(name)))
+            
+    def __setattr__(self, name, value):
+        if name in self._attributes:
+            self._changed_attributes[name] = value
+        else:
+            object.__setattr__(self, name, value)         
 
     def __repr__(self):
         return '<%s.%s %s at 0x%x>' % (self.__class__.__module__,
@@ -160,24 +194,24 @@ class Resource(object):
         if isinstance(other, Resource):
             return (self.id == other.id)
         return object.__eq__(self, other)
+        
+    def __hash__(self):
+        return hash(self.id)
 
     def _get_id(self):
-        # Overridden in subclasses. Note that the id property has to
-        # be redefined there too.
+        # Overridden in subclasses.
         return ''
-
-    id = property(_get_id)
 
 
 class User(Resource):
     '''Represents a Scribd user.
 
-    Don't instantiate directly, use login() or signup() functions instead.
+    Use login() or signup() functions to instantiate.
+
+    Resource attributes:
+      Refer to "Result explanation" section of:
+      http://www.scribd.com/developers/api?method_name=user.login
     '''
-    _fields = {'session_key': str,
-               'user_id': str,
-               'username': str,
-               'name': unicode}
 
     def _send_request(self, method, **fields):
         '''Sends a request to the HOST and returns the response.
@@ -190,17 +224,43 @@ class User(Resource):
 
     def all(self, **kwargs):
         '''Returns a list of all user documents.
+
+        Parameters:
+          Refer to the "Parameters" section of:
+          http://www.scribd.com/developers/api?method_name=docs.getList
+          
+          Parameters "api_key", "api_sig", "session_key", "my_user_id"
+          are managed internally by the library.
         '''
-        elem = self._send_request('docs.getList', **kwargs)
-        return [Document(result, self) for result in elem.get('resultset')]
+        xml = self._send_request('docs.getList', **kwargs)
+        return [Document(result, self) for result in xml.get('resultset')]
 
     def xall(self, **kwargs):
-        '''Returns a generator object iterating over all user documents
-        and creating Document objects on demand.
+        '''Similar to all() method but returns a generator object
+        iterating over all user documents.
+
+        Parameters:
+          Refer to the "Parameters" section of:
+          http://www.scribd.com/developers/api?method_name=docs.getList
+
+          Parameters "api_key", "api_sig", "session_key", "my_user_id"
+          are managed internally by the library.
+
+          Parameter "limit" is not supported.
+          
+        Additional parameters:
+          page_size
+            (optional) The number of documents acquired by a single API
+            call. The generator repeats the calls until all documents are
+            returned.
+
+        Note. If you're not interested in all documents (currently there
+        may be max. 1000 of them), just stop iterating the generator object.
         '''
+        kwargs['limit'] = kwargs.get('page_size', None)
         while True:
-            elem = self._send_request('docs.getList', **kwargs)
-            results = elem.get('resultset')
+            xml = self._send_request('docs.getList', **kwargs)
+            results = xml.get('resultset')
             if len(results) == 0:
                 break
             for result in results:
@@ -211,90 +271,136 @@ class User(Resource):
 
     def get(self, doc_id):
         '''Returns a document with the specified id.
+        
+        Parameters:
+          doc_id
+            (required) Identifier of the document to be returned.
+            The user has to be the owner of this document.
         '''
-        elem = self._send_request('docs.getSettings', doc_id=doc_id)
-        return Document(elem, self)
+        xml = self._send_request('docs.getSettings', doc_id=doc_id)
+        return Document(xml, self)
 
     def find(self, query, **kwargs):
         '''Searches for documents and returns a list of them.
         
-        Refer to the API documentation (docs.search method) for
-        possible parameters. You may use limit and offset parameters
-        instead of num_results and num_start. Note that initial
-        num_start value is 1 whereas offset is 0.
-        
-        Note that only for scope='user' (which is the default), the
-        returned documents will have the owner attribute set to this
-        user object. Otherwise the user cannot be determined so the
-        owner attribute will be None. You can set it later if you
-        want.
+        Parameters:
+          Refer to the "Parameters" section of:
+          http://www.scribd.com/developers/api?method_name=docs.search
+          
+          Parameters "api_key", "api_sig", "session_key", "my_user_id"
+          are managed internally by the library.
+
+          Parameter "num_start" is not supported.
+          Parameter "num_results" is not supported.
+          
+        Additional parameters:
+          offset
+            (optional) The offset into the list of documents.
+          limit
+            (optional) The number of documents to return
+            (default 10, max 1000).
+
+        Note on the "scope" parameter:
+          Only if scope=='user', the returned documents will have the
+          owner attribute set to this user object. Otherwise it will be
+          the scribd.api_user which will impact the ability to change
+          the document's properties. You may set the owner attributes
+          later if you have can determine the documents owner yourself.
+          Refer to the Document class for operations requiring a proper
+          owner object.
         '''
-        if 'limit' in kwargs:
-            kwargs['num_results'] = kwargs['limit']
-        if 'offset' in kwargs:
-            kwargs['num_start'] = kwargs['offset'] + 1
-        elem = self._send_request('docs.search', query=query, **kwargs)
-        owner = None
+        kwargs['num_results'] = kwargs.get('limit', None)
+        kwargs['num_start'] = kwargs.get('offset', 0) + 1
+        xml = self._send_request('docs.search', query=query, **kwargs)
+        owner = api_user
         if kwargs.get('scope', 'user') == 'user':
             owner = self
-        return [Document(result, owner) for result in elem.get('result_set')]
+        return [Document(result, owner) for result in xml.get('result_set')]
 
     def xfind(self, query, **kwargs):
-        '''Returns a generator object searching for documents and iterating
-        over them.
+        '''Similar to find() method but returns a generator object searching
+        for documents and iterating over them.
         
-        Always iterates over all found documents. Takes the same arguments
-        as find() with the exception of limit/num_results which tells how
-        many results will be acquired from a single API call. If all matches
-        from a single call are processed, the call is repeated for the next
-        chunk od results. The happens until all found documents are processed.
-        If you're not interested in all results, stop the iterator earlier.
+        Parameters:
+          Refer to the "Parameters" section of:
+          http://www.scribd.com/developers/api?method_name=docs.search
+          
+          Parameters "api_key", "api_sig", "session_key", "my_user_id"
+          are managed internally by the library.
+
+          Parameter "num_start" is not supported.
+          Parameter "num_results" is not supported.
+          
+        Additional parameters:
+          offset
+            (optional) The offset into the list of documents.
+          page_size
+            (optional) The number of documents acquired by a single API
+            call. The calls are repeated until all documents are returned.
+
+        Note. If you're not interested in all documents (currently there
+        may be max. 1000 of them), just stop iterating the generator object.
         '''
-        if 'limit' in kwargs:
-            kwargs['num_results'] = kwargs['limit']
-        if 'offset' in kwargs:
-            kwargs['num_start'] = kwargs['offset'] + 1
-        owner = None
+        kwargs['num_results'] = kwargs.get('page_size', None) 
+        kwargs['num_start'] = kwargs.get('offset', 0) + 1
+        owner = api_user
         if kwargs.get('scope', 'user') == 'user':
             owner = self
         while True:
-            elem = self._send_request('docs.search', query=query, **kwargs)
-            results = elem.get('result_set')
+            xml = self._send_request('docs.search', query=query, **kwargs)
+            results = xml.get('result_set')
             for result in results:
                 yield Document(result, owner)
-            kwargs['num_start'] = int(results.firstResultPosition) + \
-                                   int(results.totalResultsReturned)
-            if kwargs['num_start'] >= int(results.totalResultsAvailable):
+            kwargs['num_start'] = int(results.attrs['firstResultPosition']) + \
+                                  int(results.attrs['totalResultsReturned']) - 1
+            if kwargs['num_start'] >= int(results.attrs['totalResultsAvailable']):
                 break
 
     def upload(self, file, **kwargs):
         '''Uploads a new document and returns a document object.
         
-        file is either a file-alike object providing read() method and name
-        attribute or a string defining the document's URL.
+        Parameters:
+          Refer to the "Parameters" section of:
+          http://www.scribd.com/developers/api?method_name=docs.upload
+
+          Parameters "api_key", "api_sig", "session_key", "my_user_id"
+          are managed internally by the library.
+
+          Parameter "file" has a different meaning:
+          
+          file
+            (required) File to upload. Either a file-alike object or an URL
+            string. File objects have to provide a read() method and a name
+            attribute. Note that currently the whole file is loaded into
+            memory before uploading. If an URL is provided instead, the
+            file is uploaded from that URL.
         '''
+        if 'doc_type' in kwargs:
+            kwargs['doc_type'] = kwargs['doc_type'].lstrip('.')
         if isinstance(file, str):
-            elem = self._send_request('docs.uploadFromUrl', url=file, **kwargs)
+            xml = self._send_request('docs.uploadFromUrl', url=file, **kwargs)
         else:
-            elem = self._send_request('docs.upload', file=file, **kwargs)
-        doc = Document(elem, self)
+            xml = self._send_request('docs.upload', file=file, **kwargs)
+        doc = Document(xml, self)
         doc.load()
         return doc
 
-    def get_autologin_url(self, next_url, **kwargs):
+    def get_autologin_url(self, next_url=''):
         '''Creates and returns an URL that logs the user in when visited and
-        redirects to the specified URL.
+        redirects to the specified path within scribd.com domain.
         
-        The specified URL must point to scribd.com domain.
+        Parameters:
+          Refer to the "Parameters" section of:
+          http://www.scribd.com/developers/api?method_name=user.getAutoSigninUrl
+
+          Parameters "api_key", "api_sig", "session_key", "my_user_id"
+          are managed internally by the library.
         '''
-        elem = self._send_request('user.getAutoSigninUrl', next_url=next_url,
-                                  **kwargs)
-        return str(elem.get('url').value)
+        xml = self._send_request('user.getAutoSigninUrl', next_url=next_url)
+        return str(xml.get('url').text)
 
     def _get_id(self):
-        return getattr(self, 'user_id', 'default')
-
-    id = property(_get_id)
+        return getattr(self, 'user_id', u'api_user')
 
 
 class CustomUser(User):
@@ -305,8 +411,10 @@ class CustomUser(User):
     The resulting object provides all methods of the standard user object but
     operating on a subset of the Scribd API account documents, associated with
     the specified virtual username.
+    
+    Resource attributes:
+      None.
     '''
-    _fields = {}
     
     def __init__(self, my_user_id):
         User.__init__(self)
@@ -318,7 +426,7 @@ class CustomUser(User):
         fields['my_user_id'] = self.my_user_id
         return User._send_request(self, method, **fields)
 
-    def get_autologin_url(self, next_url, **kwargs):
+    def get_autologin_url(self, next_path=''):
         '''This method is not supported by custom users.
         '''
         raise NotImplementedError('autologin not supported by custom users')
@@ -326,113 +434,109 @@ class CustomUser(User):
     def _get_id(self):
         return self.my_user_id
 
-    id = property(_get_id)
-
 
 class Document(Resource):
     '''Represents a Scribd document.
     
-    Don't instantiate directly, use methods of the user objects instead.
+    Use methods of the User objects to instantiate.
     
-    Objects have a owner attribute pointing to the owning user object.
-    The owner may be unknown in which case the it is None and may be set
-    by you if you know the user.
+    Documents have an owner attribute pointing to the owning user object.
+    This always has to be a valid object. If the true owner cannot be
+    established, this will be the scribd.api_user object which is the
+    default user associated with the current API account.
     
-    Document objects provide a number of attributes representing the
-    document properties. Refer to the API documentation (Result explanation
-    section of the docs.getList method) for their names and meaning.
-    
-    If the document belongs to the current APi account or the owner
-    is a valid logged in user, the load() method can be used to load
-    extended properties. Refer to the API documentation (Result
-    explanation section of the docs.getSettings method) for their names
-    and meaning.
-    '''
-    _fields = {'doc_id': str,
-               'title': unicode,
-               'description': unicode,
-               'tags': unicode,
-               'license': str,
-               'thumbnail_url' : str,
-               'page_count': (int, 0),
-               # These fields are valid for owned docs only:
-               'access_key': str,
-               'secret_password': str,
-               'conversion_status': str,
-               'access': str,
-               'show_ads': str,
-               'author': unicode,
-               'publisher': unicode,
-               'when_published': str,
-               'edition': unicode}
+    Resource attributes:
+      Refer to "Result explanation" section of:
+      http://www.scribd.com/developers/api?method_name=docs.search
 
-    def __init__(self, elem, owner):
-        Resource.__init__(self, elem)
+      This defines a limited subset of possible attributes. The full set
+      is accessible only to the document owners and may be obtained using
+      the load() method.
+    '''
+               
+    def __init__(self, xml, owner):
+        Resource.__init__(self, xml)
         self.owner = owner
 
     def _send_request(self, method, **fields):
         '''Sends a request to the HOST and returns the response.
         '''
-        if self.owner is not None:
-            return self.owner._send_request(method, **fields)
-        return Resource._send_request(self, method, **fields)
+        return self.owner._send_request(method, **fields)
 
     def get_conversion_status(self):
         '''Obtains and returns the document conversion status.
-        Refer to the API documentation for values explanation.
+        
+        Returns:
+          Refer to the "Result explanation" section of:
+          http://www.scribd.com/developers/api?method_name=docs.getConversionStatus
         '''
-        elem = self._send_request('docs.getConversionStatus', doc_id=self.doc_id)
-        return str(elem.get('conversion_status').value)
+        xml = self._send_request('docs.getConversionStatus', doc_id=self.doc_id)
+        return str(xml.get('conversion_status').text)
 
     def delete(self):
         '''Deletes the document from Scribd service.
         '''
         self._send_request('docs.delete', doc_id=self.doc_id)
 
-    def get_download_url(self, format='original'):
-        '''Returns an URL pointing to the document file.
-        The argument specifies the file format. Refer to the API documentation
-        for possible values.
+    def get_download_url(self, doc_type='original'):
+        '''Returns a link that can be used to download a static version of the
+        document.
+        
+        Parameters:
+          Refer to the "Parameters" section of:
+          http://www.scribd.com/developers/api?method_name=docs.getDownloadUrl
+
+          Parameters "api_key", "api_sig", "session_key", "my_user_id",
+          "doc_id" are managed internally by the library.
         '''
-        elem = self._send_request('docs.getDownloadUrl', doc_id=self.doc_id,
-                                  doc_type=format)
-        return str(elem.get('download_link').value)
+        xml = self._send_request('docs.getDownloadUrl', doc_id=self.doc_id,
+                                 doc_type=doc_type)
+        return str(xml.get('download_link').text)
 
     def load(self):
-        '''If the document belongs to the owner set of if there is no owner
-        and it belongs to the current API account, this method populates
-        the extended attributes of the document with their values. Otherwise
-        a ResponseError is raised with insufficient privileges message.
+        '''Retrieves the detailed meta-data for this document and updates
+        object's resource attributes.
+        
+        Requires the document owner to be the user that uploaded this
+        document.
         '''
-        elem = self._send_request('docs.getSettings', doc_id=self.doc_id)
-        self._set_fields(elem)
+        xml = self._send_request('docs.getSettings', doc_id=self.doc_id)
+        self._load_attributes(xml)
 
     def save(self):
-        '''Saves the changed attributes.
-        This can be done only if the document owner has sufficent priviledges.
+        '''Saves the changed object's resource attributes.
+
+        Has to be called after a resource attribute has been altered
+        to make the change permanent.
+
+        Requires the document owner to be the user that uploaded this
+        document.
         '''
-        fields = self._changed_fields()
-        if fields:
+        if self._changed_attributes:
             self._send_request('docs.changeSettings', doc_ids=self.doc_id,
-                               **fields)
+                               **self._changed_attributes)
+            self._changed_attributes.clear()
             return True
         return False
 
     def _get_id(self):
         return self.doc_id
 
-    id = property(_get_id)
 
+#
+# Functions
+#
 
 def send_request(method, **fields):
-    '''Sends an API request to the HOST. method is the name of the method
+    '''Sends an API request to the HOST. "method" is the name of the method
     to perform. Any keyword arguments will be passed as arguments to the
     method.
     
-    If a keyword argument's value is None, the argument is ignored.
+    If a keyword argument's value is None, the argument is ignored and not
+    passed to the method.
     
     Returns an xmlparse.Element object representing the root of the HOST's
-    xml resposne.
+    xml response.
     
     Raises a MalformedResponseError if the xml response cannot be parsed
     or the root element isn't 'rsp'.
@@ -440,22 +544,21 @@ def send_request(method, **fields):
     Raises a ResponseError if the response indicates an error. The exception
     object contains the error code and message reported by the HOST.
     '''
-    if not key or not secret:
-        raise NotReadyError('configure api key and secret key first')
+    if not api_key or not api_secret:
+        raise NotReadyError('configure API key and secret first')
     if not method:
         raise ValueError('method must be specified')
 
     fields['method'] = method
-    fields['api_key'] = key
+    fields['api_key'] = api_key
 
     sign_fields = {}
     for k, v in fields.items():
         if v is not None:
             if isinstance(v, unicode):
-                v = v.encode('utf8')
-            elif isinstance(v, (int, long)):
-                v = str(v)
-            sign_fields[k] = v
+                sign_fields[k] = v.encode('utf8')
+            else:
+                sign_fields[k] = str(v)
     fields = sign_fields.copy()
 
     deb_fields = fields.copy()
@@ -467,44 +570,44 @@ def send_request(method, **fields):
     sign_fields = sign_fields.items()
     sign_fields.sort()
 
-    sign = md5(secret + ''.join(k + v for k, v in sign_fields))
+    sign = md5(api_secret + ''.join(k + v for k, v in sign_fields))
     fields['api_sig'] = sign.hexdigest()
 
     resp = post_multipart(HOST, REQUEST_PATH, fields.items(), port=PORT)
 
     try:
-        elem = xmlparse.parse(resp)
-        if elem.name != 'rsp':
+        xml = xmlparse.parse(resp)
+        if xml.name != 'rsp':
             raise Exception
     except:
         raise MalformedResponseError('remote host response could not be interpreted')
 
-    logger.debug('Response: %s', elem.toxml())
+    logger.debug('Response: %s', xml.toxml())
 
-    if elem.stat == 'fail':
+    if xml.attrs['stat'] == 'fail':
         try:
-            err = elem.get('error')
+            err = xml.get('error')
         except KeyError:
             code = -1
             message = 'unidentified error:\n%s' % \
-                      elem.toxml().encode('ascii', 'replace')
+                      xml.toxml().encode('ascii', 'replace')
         else:
-            code = int(err.code)
-            message = err.message
+            code = int(err.attrs['code'])
+            message = err.attrs['message']
 
         raise ResponseError(code, '%s: %s' % (method, message))
 
-    return elem
+    return xml
 
 
 def login(username, password):
-    '''Logs the given Scribd user in and returns the corresponding user object.
+    '''Logs the given Scribd user in and returns the corresponding User object.
     '''
     return User(send_request('user.login', username=username, password=password))
 
 
 def signup(username, password, email, name=None):
-    '''Creates a new Scribd user and returns the corresponding user object.
+    '''Creates a new Scribd user and returns the corresponding User object.
     The user is already logged in.
     '''
     return User(send_request('user.signup', username=username, password = password,
@@ -515,14 +618,16 @@ def update(docs, **fields):
     '''A faster way to set the same attribute of many documents. Instead of:
 
         for doc in docs:
-            doc.some_attribute = some_value
+            doc.some_attribute_1 = some_value_1
+            doc.some_attribute_2 = some_value_2
             doc.save()
     use:
 
-        update(docs, some_sttribute=some_value)
+        update(docs, some_attribute_1=some_value_1,
+                     some_attribute_2=some_value_2)
         
-    All documents must have the same owner. The operation requires only one
-    API call.
+    All documents must have the same owner. The operation is faster because
+    it requires only one API call.
     '''
     owner = None
     for doc in docs:
@@ -539,26 +644,61 @@ def update(docs, **fields):
                  **fields)
 
 
-def config(key, secret):
-    '''Sets the scribd.key and scribd.secret values in one call.
+def find(query, **kwargs):
+    '''Searches for public documents and returns a list of them.
     
-    The values have to be set to the strings given by scribd.com
-    after registering for an API account.
+    Refer to User.find() method for more usage information. Note
+    that in contrast to this method, this function searches for
+    public documents by default.
     
-    This function has to be called before any operations involving
-    API calls are performed.
+    The returned document have the owner attribute set to the
+    scribd.api_user object.
     '''
-    ns = globals()
-    ns['key'] = key
-    ns['secret'] = secret
+    if 'scope' not in kwargs:
+        kwargs['scope'] = 'all'
+    return api_user.find(query, **kwargs)
 
 
-# The default API account user. Note that it doesn't support standard
-# user attributes like username or id.
-user = User()
+def xfind(query, **kwargs):
+    '''Similar to find() function but returns a generator object
+    searching for documents and iterating over them.
+    
+    Refer to User.xfind() method for more usage information. Note
+    that in contrast to this method, this function searches for
+    public documents by default.
+    
+    The returned document have the owner attribute set to the
+    scribd.api_user object.
+    '''
+    if 'scope' not in kwargs:
+        kwargs['scope'] = 'all'
+    return api_user.xfind(query, **kwargs)
 
+
+def config(key, secret):
+    '''Configures the API key and secret. These values have to be
+    configured before any operation involving API calls can be performed.
+    
+    API key and secret values are obtained by signing up for a Scribd
+    account and registering it as an API account. The service will in
+    turn provide you with both required values.
+    '''
+    global api_key, api_secret
+    api_key = key
+    api_secret = secret
+
+
+#
+# Objects
+#
+
+# The API account user. Represents the user that registered the current
+# API account. Note that the object doesn't support standard user
+# object attributes like name or username. These are supported only
+# by properly logged in users (see the login() function).
+api_user = User()
 
 # Create a scribd logger. If logging is enabled by the application, scribd
-# will log all performed API calls.
+# library will log all performed API calls.
 logger = logging.getLogger('scribd')
 logger.addHandler(NullHandler())

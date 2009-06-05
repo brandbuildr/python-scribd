@@ -12,26 +12,27 @@ from xml.dom import minidom
 class Element(object):
     '''Encapsulates a single minidom element. Provides a list/dict-like
     index and get methods. If the element contains text/cdata only, it
-    has no subelements and the text is available as the value attribute.
+    has no subelements and the text is available as the "text" attribute.
+    Element attributes are available in attrs dictionary.
     '''
 
     def __init__(self, element):
         self._element = element
         self.name = str(element.tagName)
-        self.value = None
+        self.text = None
         nodes = element.childNodes
         if len(nodes) == 1 and nodes[0].nodeType == element.TEXT_NODE:
-            self.value = nodes[0].data.strip()
+            self.text = nodes[0].data.strip()
             self._nodes = []
         else:
             self._nodes = [node for node in nodes if node.nodeType != element.TEXT_NODE]
         if len(self._nodes) == 1 and self._nodes[0].nodeType == \
                                      element.CDATA_SECTION_NODE:
-            self.value = self._nodes[0].data.strip()
+            self.text = self._nodes[0].data.strip()
             self._nodes = []
+        self.attrs = {}
         for name, value in element.attributes.items():
-            if not hasattr(self, name):
-                setattr(self, name, value)
+            self.attrs[name] = value
 
     def index(self, name):
         '''Returns an index of the first subelement with the given name.
@@ -77,11 +78,11 @@ class Element(object):
         return True
 
     def __repr__(self):
-        value = ''
-        if self.value is not None:
-            value = ', value=%s' % repr(self.value)
+        text = ''
+        if self.text is not None:
+            text = ', text=%s' % repr(self.text)
         return '<%s.%s %s at 0x%x%s>' % (self.__class__.__module__,
-               self.__class__.__name__, repr(self.name), id(self), value)
+               self.__class__.__name__, repr(self.name), id(self), text)
 
 
 def parse(xml):
