@@ -12,6 +12,7 @@ import sys
 import os
 import pydoc
 import inspect
+import re
 from distutils.core import setup
 from distutils.cmd import Command
 
@@ -50,8 +51,8 @@ class WikiDoc(pydoc.TextDoc):
             pydoc.visiblename = _visiblename
         
     def bold(self, text):
-        # \x01 will be later replaced with "*".
-        return '\x01%s\x01' % text
+        # \xff will be replaced with '*' later.
+        return '\xff%s\xff' % text
 
     def indent(self, text, prefix='    '):
         return pydoc.TextDoc.indent(self, text)
@@ -92,16 +93,24 @@ def make_wiki_doc(object, destdir='', name=None):
     ".wiki". Otherwise object.__name__ is used.
     """
     doc = WikiDoc().document(object)
-    spacedlines = '\n'.join('%s ' % t for t in doc.splitlines())
-    doc = '<pre>\n%s</pre>' % spacedlines.replace('_', '`_`'). \
-        replace('*', '`*`').replace('\x01', '*')
+    # Add a space to all lines.
+    text = '\n'.join('%s ' % t for t in doc.splitlines())
+    # Surround all underscores with backtick but only if not surrounded by alnums.
+    text = re.sub(r'[a-zA-Z0-9]_[a-zA-Z0-9]', lambda m: m.group(0).replace('_', '\x01'),
+                  text).replace('_', '`_`').replace('\x01', '_')
+    # Same for a star.
+    text = re.sub(r'[a-zA-Z0-9]*[a-zA-Z0-9]', lambda m: m.group(0).replace('*', '\x01'),
+                  text).replace('*', '`*`').replace('\x01', '*')
+    # Fix the bolds added by WikiDoc class.
+    text = text.replace('\xff', '*')
+    text = '<pre>\n%s</pre>' % text
     if name is None:
         name = object.__name__
     path = os.path.join(destdir, '%s.wiki' % name)
     print 'writing %s' % path
     if not os.path.exists(destdir):
         os.makedirs(destdir)
-    open(path, 'w').write(doc)
+    open(path, 'w').write(text)
 
 
 class wikidoc(Command):
