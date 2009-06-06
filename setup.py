@@ -93,7 +93,7 @@ def make_wiki_doc(object, destdir='', name=None):
     """
     doc = WikiDoc().document(object)
     spacedlines = '\n'.join('%s ' % t for t in doc.splitlines())
-    doc = '<pre>\n%s</pre>' % spacedlines
+    doc = '<pre>\n%s</pre>' % spacedlines.replace('_', '`_`')
     if name is None:
         name = object.__name__
     path = os.path.join(destdir, '%s.wiki' % name)
