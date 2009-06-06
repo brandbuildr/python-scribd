@@ -55,6 +55,12 @@ class WikiDoc(pydoc.TextDoc):
 
     def indent(self, text, prefix='    '):
         return pydoc.TextDoc.indent(self, text)
+        
+    def section(self, title, contents):
+        if title == 'FILE':
+            # Remove the path part.
+            contents = os.path.basename(contents)
+        return pydoc.TextDoc.section(self, title, contents)
 
     def docclass(self, object, name=None, mod=None):
         # Exclude classes from the root module documentation.
