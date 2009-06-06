@@ -27,8 +27,6 @@ __author__ = 'Arkadiusz Wahlig <arkadiusz.wahlig@gmail.com>'
 #
 
 import sys
-import httplib
-import urllib
 import logging
 import os
 
