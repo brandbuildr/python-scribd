@@ -280,7 +280,7 @@ class User(Resource):
             The user has to be the owner of this document.
 
         Returns:
-          A [Document] objects.
+          A [Document] object.
         """
         xml = self._send_request('docs.getSettings', doc_id=doc_id)
         return Document(xml, self)
@@ -387,7 +387,7 @@ class User(Resource):
             the "name" attribute.
 
         Returns:
-          A [Document] objects.
+          A [Document] object.
         """
         if isinstance(file, str):
             method = 'docs.uploadFromUrl'
@@ -472,18 +472,42 @@ class Document(Resource):
     
     Use methods of the User objects to instantiate.
     
-    Documents have an owner attribute pointing to the owning user object.
-    This always has to be a valid object. If the true owner cannot be
-    established, this will be the scribd.api_user object which is the
-    default user associated with the current API account.
+    Attributes:
+      owner
+        A [User] object owning the document. This always is a valid
+        object but may not be the true owner if it could not be
+        established. This may be the case if the document was obtained
+        from find() or xfind(). In worst case, owner will be set to
+        the scribd.api_user object which is the default user associated
+        with the current API account.
+        
+        You may set this attribute if you can determine the true owner
+        yourself.
+        
+        A true owner is needed to be able to change the document's
+        attributes.
     
     Resource attributes:
+      The initial set of the attributes depend on how this object
+      was obtained.
+
+      Refer to "Result explanation" section of:
+      http://www.scribd.com/developers/api?method_name=docs.getList
+      if the object was obtained by the [User] object's get(), all()
+      or xall() methods.
+      
       Refer to "Result explanation" section of:
       http://www.scribd.com/developers/api?method_name=docs.search
+      if the object was obtained by find() or xfind().
+      
+      Refer to "Result explanation" section of:
+      http://www.scribd.com/developers/api?method_name=docs.upload
+      if the object was obtained by the [User] object's upload()
+      method.
 
-      This defines a limited subset of possible attributes. The full set
-      is accessible only to the document owners and may be obtained using
-      the load() method.
+      If the owner attribute points to a true owner of the document,
+      load() method may be used to obtain the full set of attributes.
+      Refer to the method's documentation for more information.
     """        
     
     def __init__(self, xml, owner):
@@ -529,6 +553,10 @@ class Document(Resource):
     def load(self):
         """Retrieves the detailed meta-data for this document and updates
         object's resource attributes.
+        
+        Refer to the "Result explanation" section of:
+        http://www.scribd.com/developers/api?method_name=docs.getSettings
+        for the names and descriptions of the resource attributes.
         
         Requires the document owner to be the user that uploaded this
         document.
