@@ -13,7 +13,7 @@ http://www.scribd.com/developers
 Copyright (c) 2009 Arkadiusz Wahlig <arkadiusz.wahlig@gmail.com>
 '''
 
-__version__ = '0.9.5'
+__version__ = '0.9.6'
 
 __all__ = ['NotReadyError', 'MalformedResponseError', 'ResponseError',
            'Resource', 'User', 'CustomUser', 'Document', 'login',
@@ -30,6 +30,7 @@ import sys
 import httplib
 import urllib
 import logging
+import os
 
 # Both md5 module (deprecated since Python 2.5) and hashlib provide the
 # same md5 object.
@@ -113,14 +114,18 @@ class Resource(object):
     and used like any other Python object attributes but are
     stored in a separate container.
     '''
+    
+    # Names of instance variables. This is used to distinguish
+    # between them and the resource attributes.
+    _varnames = ['_attributes', '_set_attributes']
 
     def __init__(self, xml=None):
         '''Instantiates an object of the class. If "xml" is not None, it
         is a xmlparse.Element object whose subelements are to be converted
         to this object's attributes.
         '''
-        self.__dict__['_attributes'] = {}
-        self.__dict__['_set_attributes'] = {}
+        self._attributes = {} # Attributes as loaded from the XML.
+        self._set_attributes = {} # Attributes set externally.
         if xml is not None:
             self._load_attributes(xml)
             
@@ -157,22 +162,24 @@ class Resource(object):
             self._set_attributes.pop(element.name, None)
             
     def __getattr__(self, name):
-        if name == 'id':
-            return self._get_id()
-        try:
-            return self._set_attributes[name]
-        except KeyError:
+        if name not in self._varnames:
+            if name == 'id':
+                return self._get_id()
             try:
-                return self._attributes[name]
+                return self._set_attributes[name]
             except KeyError:
-                raise AttributeError('%s object has no attribute %s' % \
-                                     (repr(self.__class__.__name__), repr(name)))
+                try:
+                    return self._attributes[name]
+                except KeyError:
+                    pass
+        raise AttributeError('%s object has no attribute %s' % \
+                             (repr(self.__class__.__name__), repr(name)))
             
     def __setattr__(self, name, value):
-        if name not in self.__dict__ and not name.startswith('_'):
-            self._set_attributes[name] = value
-        else:
+        if name in self._varnames:
             object.__setattr__(self, name, value)         
+        else:
+            self._set_attributes[name] = value
 
     def __repr__(self):
         return '<%s.%s %s at 0x%x>' % (self.__class__.__module__,
@@ -358,17 +365,23 @@ class User(Resource):
           
           file
             (required) File to upload. Either a file-alike object or an URL
-            string. File objects have to provide a read() method and a name
-            attribute. Note that currently the whole file is loaded into
-            memory before uploading. If an URL is provided instead, the
-            file is uploaded from that URL.
+            string. If set to an URL, the file is uploaded from that URL.
+            If set to a file object, the file is loaded into memory using the
+            read() method and uploaded. The name of the file is obtained from
+            the "name" attribute.
         '''
-        if 'doc_type' in kwargs:
-            kwargs['doc_type'] = kwargs['doc_type'].lstrip('.')
         if isinstance(file, str):
-            xml = self._send_request('docs.uploadFromUrl', url=file, **kwargs)
+            method = 'docs.uploadFromUrl'
+            kwargs['url'] = file
+            if 'doc_type' not in kwargs:
+                kwargs['doc_type'] = os.path.splitext(file)[-1]
         else:
-            xml = self._send_request('docs.upload', file=file, **kwargs)
+            method = 'docs.upload'
+            kwargs['file'] = file
+            if 'doc_type' not in kwargs:
+                kwargs['doc_type'] = os.path.splitext(file.name)[-1]
+        kwargs['doc_type'] = kwargs['doc_type'].lstrip('.').lower()
+        xml = self._send_request(method, **kwargs)
         return Document(xml, self)
 
     def get_autologin_url(self, next_url=''):
@@ -386,7 +399,7 @@ class User(Resource):
         return str(xml.get('url').text)
 
     def _get_id(self):
-        return getattr(self, 'user_id', u'api_user')
+        return getattr(self, 'user_id', 'api_user')
 
 
 class CustomUser(User):
@@ -404,7 +417,7 @@ class CustomUser(User):
     
     def __init__(self, my_user_id):
         User.__init__(self)
-        self.__dict__['my_user_id'] = my_user_id
+        self.my_user_id = my_user_id
         
     def _send_request(self, method, **fields):
         '''Sends a request to the HOST and returns the response.
@@ -442,7 +455,7 @@ class Document(Resource):
                
     def __init__(self, xml, owner):
         Resource.__init__(self, xml)
-        self.__dict__['owner'] = owner
+        self.owner = owner
 
     def _send_request(self, method, **fields):
         '''Sends a request to the HOST and returns the response.
@@ -505,9 +518,24 @@ class Document(Resource):
             self._set_attributes.clear()
             return True
         return False
+        
+    def replace(self, file, **kwargs):
+        '''Uploads a new document file in place of the current one. All
+        attributes including doc_id and title remain intact.
+        
+        Parameters:
+          Refer to the User.upload() method.
+          
+          Parameter "rev_id" is managed internally by the library.
+        '''
+        doc = self.owner.upload(file, rev_id=self.doc_id, **kwargs)
+        # Note. Currently the attributes are same as during initial upload.
+        self._attributes.update(doc._attributes)
 
     def _get_id(self):
         return self.doc_id
+
+Document._varnames.append('owner')
 
 
 #
