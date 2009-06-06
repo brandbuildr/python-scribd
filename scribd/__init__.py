@@ -207,8 +207,8 @@ class User(Resource):
     Use login() or signup() functions to instantiate.
 
     Resource attributes:
-      Refer to "Result explanation" section of:
-      http://www.scribd.com/developers/api?method_name=user.login
+        Refer to "Result explanation" section of:
+        http://www.scribd.com/developers/api?method_name=user.login
     """
     
     def _send_request(self, method, **fields):
@@ -222,14 +222,14 @@ class User(Resource):
         """Returns a list of all user documents.
 
         Parameters:
-          Refer to the "Parameters" section of:
-          http://www.scribd.com/developers/api?method_name=docs.getList
+            Refer to the "Parameters" section of:
+            http://www.scribd.com/developers/api?method_name=docs.getList
           
-          Parameters "api_key", "api_sig", "session_key", "my_user_id"
-          are managed internally by the library.
+            Parameters "api_key", "api_sig", "session_key", "my_user_id"
+            are managed internally by the library.
           
         Returns:
-          A list of [Document] objects.
+            A list of [Document] objects.
         """
         xml = self._send_request('docs.getList', **kwargs)
         return [Document(result, self) for result in xml.get('resultset')]
@@ -239,13 +239,13 @@ class User(Resource):
         iterating over all user documents.
 
         Parameters:
-          Refer to the "Parameters" section of:
-          http://www.scribd.com/developers/api?method_name=docs.getList
+            Refer to the "Parameters" section of:
+            http://www.scribd.com/developers/api?method_name=docs.getList
 
-          Parameters "api_key", "api_sig", "session_key", "my_user_id"
-          are managed internally by the library.
+            Parameters "api_key", "api_sig", "session_key", "my_user_id"
+            are managed internally by the library.
 
-          Parameter "limit" is not supported.
+            Parameter "limit" is not supported.
           
         Additional parameters:
           page_size
@@ -254,7 +254,7 @@ class User(Resource):
             returned.
 
         Returns:
-          A generator object yielding [Document] objects.
+            A generator object yielding [Document] objects.
 
         Note. If you're not interested in all documents (currently there
         may be max. 1000 of them), just stop iterating the generator object.
@@ -280,7 +280,7 @@ class User(Resource):
             The user has to be the owner of this document.
 
         Returns:
-          A [Document] object.
+            A [Document] object.
         """
         xml = self._send_request('docs.getSettings', doc_id=doc_id)
         return Document(xml, self)
@@ -289,14 +289,14 @@ class User(Resource):
         """Searches for documents and returns a list of them.
         
         Parameters:
-          Refer to the "Parameters" section of:
-          http://www.scribd.com/developers/api?method_name=docs.search
+            Refer to the "Parameters" section of:
+            http://www.scribd.com/developers/api?method_name=docs.search
           
-          Parameters "api_key", "api_sig", "session_key", "my_user_id"
-          are managed internally by the library.
+            Parameters "api_key", "api_sig", "session_key", "my_user_id"
+            are managed internally by the library.
 
-          Parameter "num_start" is not supported.
-          Parameter "num_results" is not supported.
+            Parameter "num_start" is not supported.
+            Parameter "num_results" is not supported.
           
         Additional parameters:
           offset
@@ -306,16 +306,16 @@ class User(Resource):
             (default 10, max 1000).
 
         Note on the "scope" parameter:
-          Only if scope=='user', the returned documents will have the
-          owner attribute set to this user object. Otherwise it will be
-          the scribd.api_user which will impact the ability to change
-          the document's properties. You may set the owner attributes
-          later if you have can determine the documents owner yourself.
-          Refer to the Document class for operations requiring a proper
-          owner object.
+            Only if scope=='user', the returned documents will have the
+            owner attribute set to this user object. Otherwise it will be
+            the scribd.api_user which will impact the ability to change
+            the document's properties. You may set the owner attributes
+            later if you have can determine the documents owner yourself.
+            Refer to the Document class for operations requiring a proper
+            owner object.
 
         Returns:
-          A list of [Document] objects.
+            A list of [Document] objects.
         """
         kwargs['num_results'] = kwargs.get('limit', None)
         kwargs['num_start'] = kwargs.get('offset', 0) + 1
@@ -330,14 +330,14 @@ class User(Resource):
         for documents and iterating over them.
         
         Parameters:
-          Refer to the "Parameters" section of:
-          http://www.scribd.com/developers/api?method_name=docs.search
+            Refer to the "Parameters" section of:
+            http://www.scribd.com/developers/api?method_name=docs.search
           
-          Parameters "api_key", "api_sig", "session_key", "my_user_id"
-          are managed internally by the library.
+            Parameters "api_key", "api_sig", "session_key", "my_user_id"
+            are managed internally by the library.
 
-          Parameter "num_start" is not supported.
-          Parameter "num_results" is not supported.
+            Parameter "num_start" is not supported.
+            Parameter "num_results" is not supported.
           
         Additional parameters:
           offset
@@ -347,7 +347,7 @@ class User(Resource):
             call. The calls are repeated until all documents are returned.
 
         Returns:
-          A generator object yielding [Document] objects.
+            A generator object yielding [Document] objects.
 
         Note. If you're not interested in all documents (currently there
         may be max. 1000 of them), just stop iterating the generator object.
@@ -371,14 +371,15 @@ class User(Resource):
         """Uploads a new document and returns a document object.
         
         Parameters:
-          Refer to the "Parameters" section of:
-          http://www.scribd.com/developers/api?method_name=docs.upload
+            Refer to the "Parameters" section of:
+            http://www.scribd.com/developers/api?method_name=docs.upload
 
-          Parameters "api_key", "api_sig", "session_key", "my_user_id"
-          are managed internally by the library.
+            Parameters "api_key", "api_sig", "session_key", "my_user_id"
+            are managed internally by the library.
 
-          Parameter "file" has a different meaning:
-          
+            Parameter "file" has a different meaning.
+
+        Modified parameters:          
           file
             (required) File to upload. Either a file-alike object or an URL
             string. If set to an URL, the file is uploaded from that URL.
@@ -387,7 +388,7 @@ class User(Resource):
             the "name" attribute.
 
         Returns:
-          A [Document] object.
+            A [Document] object.
         """
         if isinstance(file, str):
             method = 'docs.uploadFromUrl'
@@ -408,14 +409,14 @@ class User(Resource):
         redirects to the specified URL.
         
         Parameters:
-          Refer to the "Parameters" section of:
-          http://www.scribd.com/developers/api?method_name=user.getAutoSigninUrl
+            Refer to the "Parameters" section of:
+            http://www.scribd.com/developers/api?method_name=user.getAutoSigninUrl
 
-          Parameters "api_key", "api_sig", "session_key", "my_user_id"
-          are managed internally by the library.
+            Parameters "api_key", "api_sig", "session_key", "my_user_id"
+            are managed internally by the library.
 
         Returns:
-          An URL (string).
+            An URL (string).
         """
         xml = self._send_request('user.getAutoSigninUrl', next_url=next_url)
         return str(xml.get('url').text)
@@ -488,26 +489,26 @@ class Document(Resource):
         attributes.
     
     Resource attributes:
-      The initial set of the attributes depend on how this object
-      was obtained.
+        The initial set of the attributes depend on how this object
+        was obtained.
 
-      Refer to "Result explanation" section of:
-      http://www.scribd.com/developers/api?method_name=docs.getList
-      if the object was obtained by the [User] object's get(), all()
-      or xall() methods.
+        Refer to "Result explanation" section of:
+        http://www.scribd.com/developers/api?method_name=docs.getList
+        if the object was obtained by the [User] object's get(), all()
+        or xall() methods.
       
-      Refer to "Result explanation" section of:
-      http://www.scribd.com/developers/api?method_name=docs.search
-      if the object was obtained by find() or xfind().
+        Refer to "Result explanation" section of:
+        http://www.scribd.com/developers/api?method_name=docs.search
+        if the object was obtained by find() or xfind().
       
-      Refer to "Result explanation" section of:
-      http://www.scribd.com/developers/api?method_name=docs.upload
-      if the object was obtained by the [User] object's upload()
-      method.
+        Refer to "Result explanation" section of:
+        http://www.scribd.com/developers/api?method_name=docs.upload
+        if the object was obtained by the [User] object's upload()
+        method.
 
-      If the owner attribute points to a true owner of the document,
-      load() method may be used to obtain the full set of attributes.
-      Refer to the method's documentation for more information.
+        If the owner attribute points to a true owner of the document,
+        load() method may be used to obtain the full set of attributes.
+        Refer to the method's documentation for more information.
     """        
     
     def __init__(self, xml, owner):
@@ -522,8 +523,8 @@ class Document(Resource):
         """Obtains and returns the document conversion status.
         
         Returns:
-          Refer to the "Result explanation" section of:
-          http://www.scribd.com/developers/api?method_name=docs.getConversionStatus
+            Refer to the "Result explanation" section of:
+            http://www.scribd.com/developers/api?method_name=docs.getConversionStatus
         """
         xml = self._send_request('docs.getConversionStatus', doc_id=self.doc_id)
         return str(xml.get('conversion_status').text)
@@ -537,14 +538,14 @@ class Document(Resource):
         document.
         
         Parameters:
-          Refer to the "Parameters" section of:
-          http://www.scribd.com/developers/api?method_name=docs.getDownloadUrl
+            Refer to the "Parameters" section of:
+            http://www.scribd.com/developers/api?method_name=docs.getDownloadUrl
 
-          Parameters "api_key", "api_sig", "session_key", "my_user_id",
-          "doc_id" are managed internally by the library.
+            Parameters "api_key", "api_sig", "session_key", "my_user_id",
+            "doc_id" are managed internally by the library.
           
         Returns:
-          An URL (string).
+            An URL (string).
         """
         xml = self._send_request('docs.getDownloadUrl', doc_id=self.doc_id,
                                  doc_type=doc_type)
@@ -586,9 +587,9 @@ class Document(Resource):
         attributes including doc_id and title remain intact.
         
         Parameters:
-          Refer to the User.upload() method.
+            Refer to the User.upload() method.
           
-          Parameter "rev_id" is managed internally by the library.
+            Parameter "rev_id" is managed internally by the library.
         """
         doc = self.owner.upload(file, rev_id=self.doc_id, **kwargs)
         # Note. Currently the attributes are same as during initial upload.
@@ -615,8 +616,8 @@ def send_request(method, **fields):
         the argument is ignored (not sent).
     
     Returns:
-      An xmlparse.Element object representing the root of the HOST's
-      XML response.
+        An xmlparse.Element object representing the root of the HOST's
+        XML response.
     
     Raises:
       MalformedResponseError
@@ -691,7 +692,7 @@ def login(username, password):
         The user's password.
 
     Returns:
-      A [User] object.
+        A [User] object.
     """
     return User(send_request('user.login', username=username, password=password))
 
@@ -709,7 +710,7 @@ def signup(username, password, email, name=None):
         E-mail address of the user.
 
     Returns:
-      A [User] object.
+        A [User] object.
     """
     return User(send_request('user.signup', username=username, password = password,
                              email=email, name=name))
@@ -725,16 +726,16 @@ def update(docs, **fields):
         Document attributes to set.
     
     Example:
-      Instead of:
+        Instead of:
 
-          for doc in docs:
-              doc.some_attribute_1 = some_value_1
-              doc.some_attribute_2 = some_value_2
-              doc.save()
-      use:
+            for doc in docs:
+                doc.some_attribute_1 = some_value_1
+                doc.some_attribute_2 = some_value_2
+                doc.save()
+        use:
 
-          update(docs, some_attribute_1=some_value_1,
-                       some_attribute_2=some_value_2)
+            update(docs, some_attribute_1=some_value_1,
+                         some_attribute_2=some_value_2)
         
     All documents must have the same owner. The operation is faster because
     it requires only one API call.
@@ -762,10 +763,10 @@ def find(query, **kwargs):
     """Searches for public documents and returns a list of them.
 
     Parameters:
-      Refer to User.find() method.
+        Refer to User.find() method.
       
     Returns:
-      A list of [Document] objects.
+        A list of [Document] objects.
 
     This function searches for public documents by default.
     
@@ -782,10 +783,10 @@ def xfind(query, **kwargs):
     searching for documents and iterating over them.
     
     Parameters:
-      Refer to User.xfind() method.
+        Refer to User.xfind() method.
       
     Returns:
-      A generator object yielding [Document] objects.
+        A generator object yielding [Document] objects.
 
     This function searches for public documents by default.
     
