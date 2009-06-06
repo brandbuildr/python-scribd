@@ -50,8 +50,8 @@ class WikiDoc(pydoc.TextDoc):
             pydoc.visiblename = _visiblename
         
     def bold(self, text):
-        # Wiki bold.
-        return '*%s*' % text
+        # \x01 will be later replaced with "*".
+        return '\x01%s\x01' % text
 
     def indent(self, text, prefix='    '):
         return pydoc.TextDoc.indent(self, text)
@@ -93,7 +93,8 @@ def make_wiki_doc(object, destdir='', name=None):
     """
     doc = WikiDoc().document(object)
     spacedlines = '\n'.join('%s ' % t for t in doc.splitlines())
-    doc = '<pre>\n%s</pre>' % spacedlines.replace('_', '`_`')
+    doc = '<pre>\n%s</pre>' % spacedlines.replace('_', '`_`'). \
+        replace('*', '`*`').replace('\x01', '*')
     if name is None:
         name = object.__name__
     path = os.path.join(destdir, '%s.wiki' % name)
