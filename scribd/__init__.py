@@ -7,7 +7,7 @@ control documents in many formats using the Scribd platform.
 For more information on the Scribd platform, visit:
 http://www.scribd.com/about
 
-The underlying API documentation can be found at:
+The underlying RESTful API documentation can be found at:
 http://www.scribd.com/developers
 
 Copyright (c) 2009 Arkadiusz Wahlig <arkadiusz.wahlig@gmail.com>
@@ -137,12 +137,12 @@ class Resource(object):
         return attrs
         
     def _send_request(self, method, **fields):
-        '''Sends a request to the HOST and returns the response.
+        '''Sends a request to the HOST and returns the XML response.
         '''
         return send_request(method, **fields)
         
     def _load_attributes(self, xml):
-        '''Adds resource attributes to this object based on xml
+        '''Adds resource attributes to this object based on XML
         response from the HOST.
         '''
         for element in xml:
@@ -209,12 +209,11 @@ class User(Resource):
     '''
 
     def _send_request(self, method, **fields):
-        '''Sends a request to the HOST and returns the response.
+        '''Sends a request to the HOST and returns the XML response.
         '''
-        # Add the session key to the call but only if this isn't the
-        # default (API account) user.
-        if hasattr(self, 'session_key'):
-            fields['session_key'] = self.session_key
+        # Add the session key to the call. If this is the default
+        # (API account) user, add None (which will be ignored).
+        fields['session_key'] = getattr(self, 'session_key', None)
         return Resource._send_request(self, method, **fields)
 
     def all(self, **kwargs):
@@ -386,7 +385,7 @@ class User(Resource):
 
     def get_autologin_url(self, next_url=''):
         '''Creates and returns an URL that logs the user in when visited and
-        redirects to the specified path within scribd.com domain.
+        redirects to the specified URL.
         
         Parameters:
           Refer to the "Parameters" section of:
@@ -402,33 +401,44 @@ class User(Resource):
         return getattr(self, 'user_id', 'api_user')
 
 
-class CustomUser(User):
-    '''Provides an easy way to implement virtual users within a single Scribd
-    user account.
+class VirtualUser(User):
+    '''Provides an easy way to implement virtual users within the current
+    Scribd API account. This is useful if Scribd is used as a backend for
+    a platform with its own user authentication system.
     
-    Just instantiate this class passing a virtual user name to the constructor.
-    The resulting object provides all methods of the standard user object but
-    operating on a subset of the Scribd API account documents, associated with
-    the specified virtual username.
+    Virtual users are created just by instantiating this class passing the
+    name of the virtual user to the constructor. This will most probably
+    by the name used by your own authentication system.
+
+    Because this is a subclass of the User class, the virtual users provide
+    the same set of operations (except get_autologin_url()) as normal users.
     
     Resource attributes:
       None.
     '''
     
     def __init__(self, my_user_id):
+        '''Instantiates a new object.
+        
+        Parameters:
+          my_user_id
+            Name of the virtual user. Every time an object is created
+            with the same name, it will refer to the same set of
+            documents.
+        '''
         User.__init__(self)
         self.my_user_id = my_user_id
         
     def _send_request(self, method, **fields):
-        '''Sends a request to the HOST and returns the response.
+        '''Sends a request to the HOST and returns the XML response.
         '''
         fields['my_user_id'] = self.my_user_id
         return User._send_request(self, method, **fields)
 
     def get_autologin_url(self, next_path=''):
-        '''This method is not supported by custom users.
+        '''This method is not supported by virtual users.
         '''
-        raise NotImplementedError('autologin not supported by custom users')
+        raise NotImplementedError('autologin not supported by virtual users')
 
     def _get_id(self):
         return self.my_user_id
@@ -458,7 +468,7 @@ class Document(Resource):
         self.owner = owner
 
     def _send_request(self, method, **fields):
-        '''Sends a request to the HOST and returns the response.
+        '''Sends a request to the HOST and returns the XML response.
         '''
         return self.owner._send_request(method, **fields)
 
@@ -543,21 +553,25 @@ Document._varnames.append('owner')
 #
 
 def send_request(method, **fields):
-    '''Sends an API request to the HOST. "method" is the name of the method
-    to perform. Any keyword arguments will be passed as arguments to the
-    method.
+    '''Sends an API request to the HOST and returns the XML response.
     
-    If a keyword argument's value is None, the argument is ignored and not
-    passed to the method.
+    Parameters:
+      method
+        Name of the method to perform.
+      keyword arguments
+        Sent as method arguments. If a keyword argument's value is None,
+        the argument is ignored (not sent).
     
-    Returns an xmlparse.Element object representing the root of the HOST's
-    xml response.
+    Returns:
+      An xmlparse.Element object representing the root of the HOST's
+      XML response.
     
-    Raises a MalformedResponseError if the xml response cannot be parsed
-    or the root element isn't 'rsp'.
-    
-    Raises a ResponseError if the response indicates an error. The exception
-    object contains the error code and message reported by the HOST.
+    Raises:
+      MalformedResponseError
+        If the XML response cannot be parsed or the root element isn't 'rsp'.
+      ResponseError
+        If the response indicates an error. The exception object contains
+        the error code and message reported by the HOST.
     '''
     if not api_key or not api_secret:
         raise NotReadyError('configure API key and secret first')
@@ -617,6 +631,12 @@ def send_request(method, **fields):
 
 def login(username, password):
     '''Logs the given Scribd user in and returns the corresponding User object.
+    
+    Parameters:
+      username
+        Name of the user.
+      password
+        The user's password.
     '''
     return User(send_request('user.login', username=username, password=password))
 
@@ -624,22 +644,39 @@ def login(username, password):
 def signup(username, password, email, name=None):
     '''Creates a new Scribd user and returns the corresponding User object.
     The user is already logged in.
+    
+    Parameters:
+      username
+        Name of the new user.
+      password
+        Password of the new user.
+      email
+        E-mail address of the user.
     '''
     return User(send_request('user.signup', username=username, password = password,
                              email=email, name=name))
 
 
 def update(docs, **fields):
-    '''A faster way to set the same attribute of many documents. Instead of:
+    '''A faster way to set the same attribute of many documents.
+    
+    Parameters:
+      docs
+        A sequence of document objects.
+      keyword arguments
+        Document attributes to set.
+    
+    Example:
+      Instead of:
 
-        for doc in docs:
-            doc.some_attribute_1 = some_value_1
-            doc.some_attribute_2 = some_value_2
-            doc.save()
-    use:
+          for doc in docs:
+              doc.some_attribute_1 = some_value_1
+              doc.some_attribute_2 = some_value_2
+              doc.save()
+      use:
 
-        update(docs, some_attribute_1=some_value_1,
-                     some_attribute_2=some_value_2)
+          update(docs, some_attribute_1=some_value_1,
+                       some_attribute_2=some_value_2)
         
     All documents must have the same owner. The operation is faster because
     it requires only one API call.
@@ -648,23 +685,28 @@ def update(docs, **fields):
     for doc in docs:
         if not isinstance(doc, Document):
             raise ValueError('expected a sequence of Document objects')
-        doc.__dict__.update(fields)
         if owner is None:
             owner = doc.owner
-        elif owner.id != doc.owner.id:
+        elif owner != doc.owner:
             raise ValueError('all documents must have the same owner')
-    send_request('docs.changeSettings',
-                 doc_ids=','.join(doc.id for doc in docs),
-                 session_key=owner.session_key
-                 **fields)
+    if owner is not None:
+        owner._send_request('docs.changeSettings',
+                            doc_ids=','.join(doc.id for doc in docs),
+                            **fields)
+    # We have to set the attributes one by one to let the document's
+    # __setattr__() decide what to do with it.
+    for doc in docs:
+        for name, value in fields.items():
+            setattr(doc, name, value)
 
 
 def find(query, **kwargs):
     '''Searches for public documents and returns a list of them.
-    
-    Refer to User.find() method for more usage information. Note
-    that in contrast to this method, this function searches for
-    public documents by default.
+
+    Parameters:
+      Refer to User.find() method.
+      
+    This function searches for public documents by default.
     
     The returned document have the owner attribute set to the
     scribd.api_user object.
@@ -678,9 +720,10 @@ def xfind(query, **kwargs):
     '''Similar to find() function but returns a generator object
     searching for documents and iterating over them.
     
-    Refer to User.xfind() method for more usage information. Note
-    that in contrast to this method, this function searches for
-    public documents by default.
+    Parameters:
+      Refer to User.xfind() method.
+      
+    This function searches for public documents by default.
     
     The returned document have the owner attribute set to the
     scribd.api_user object.
@@ -694,9 +737,15 @@ def config(key, secret):
     '''Configures the API key and secret. These values have to be
     configured before any operation involving API calls can be performed.
     
+    Parameters:
+      key
+        The API key assigned to your Scribd user account.
+      secret
+        The API secret assigned to your Scribd user account.
+    
     API key and secret values are obtained by signing up for a Scribd
     account and registering it as an API account. The service will in
-    turn provide you with both required values.
+    turn provide you with both values.
     '''
     global api_key, api_secret
     api_key = key
@@ -709,11 +758,12 @@ def config(key, secret):
 
 # The API account user. Represents the user that registered the current
 # API account. Note that the object doesn't support standard user
-# object attributes like name or username. These are supported only
-# by properly logged in users (see the login() function).
+# object attributes like "name" or "username". These are supported only
+# by properly logged in users (see the login() function) and may be
+# accessed for this user in the same way (by logging in).
 api_user = User()
 
-# Create a scribd logger. If logging is enabled by the application, scribd
-# library will log all performed API calls.
+# Create a scribd logger using the logging library. If logging is enabled
+# by the application, scribd library will log all performed API calls.
 logger = logging.getLogger('scribd')
 logger.addHandler(NullHandler())
