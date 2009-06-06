@@ -1,12 +1,12 @@
 #!/usr/bin/env python
-'''
+"""
 Scribd client library distutils setup script.
 
 Copyright (c) 2009, Arkadiusz Wahlig <arkadiusz.wahlig@gmail.com>
 
 Distributed under the BSD License, see the
 accompanying LICENSE file for more information.
-'''
+"""
 
 import sys
 import os
@@ -53,18 +53,38 @@ class WikiDoc(pydoc.TextDoc):
         # Wiki bold.
         return '*%s*' % text
 
+    def indent(self, text, prefix='    '):
+        return pydoc.TextDoc.indent(self, text)
+
     def docclass(self, object, name=None, mod=None):
         # Exclude classes from the root module documentation.
         if mod is not None:
             return ''
         return pydoc.TextDoc.docclass(self, object, name, mod)
 
+    def docother(self, object, name=None, mod=None, parent=None, maxlen=None, doc=None):
+        text = pydoc.TextDoc.docother(self, object, name, mod, parent, maxlen, doc)
+        rep = repr(object)
+        pos = rep.find(' at 0x')
+        if rep.startswith('<') and pos > 0 and rep.endswith('>'):
+            # Object has an unsuitable representation.
+            fin = pos + 6
+            while rep[fin].isalnum():
+                fin += 1
+            rep = rep[:pos] + rep[fin:]
+            if hasattr(object, '__class__') and object.__class__.__module__ == mod:
+                name = object.__class__.__name__
+                rep = rep.replace(name, '[%s]' % name)
+            text = text[:text.index('<')] + rep
+        return text
+
 
 def make_wiki_doc(object, destdir='', name=None):
-    '''Creates a .wiki file documenting the given object.
+    """Creates a .wiki file documenting the given object.
+    
     If "name" is given, it is the name of the file without
     ".wiki". Otherwise object.__name__ is used.
-    '''
+    """
     doc = WikiDoc().document(object)
     spacedlines = '\n'.join('%s ' % t for t in doc.splitlines())
     doc = '<pre>\n%s</pre>' % spacedlines
@@ -78,7 +98,7 @@ def make_wiki_doc(object, destdir='', name=None):
 
 
 class wikidoc(Command):
-    '''Handles the 'wikidoc' command.'''
+    """Handles the 'wikidoc' command."""
     
     description = 'create the documentation .wiki files'
     user_options = [('destdir=', 'd', 'destination directory for the .wiki files')]
