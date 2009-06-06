@@ -51,7 +51,9 @@ class WikiDoc(pydoc.TextDoc):
             pydoc.visiblename = _visiblename
         
     def bold(self, text):
-        # \xff will be replaced with '*' later.
+        # Note: '\xff' is replaced with '*' in make_wiki_doc().
+        # The FF is used so the bold markers won't get escaped
+        # together with other '*' chars.
         return '\xff%s\xff' % text
 
     def indent(self, text, prefix='    '):
@@ -87,21 +89,26 @@ class WikiDoc(pydoc.TextDoc):
 
 
 def make_wiki_doc(object, destdir='', name=None):
-    """Creates a .wiki file documenting the given object.
-    
-    If "name" is given, it is the name of the file without
-    ".wiki". Otherwise object.__name__ is used.
+    """Creates a .wiki file for Google Code Wiki documenting
+    the given object.
+
+    Parameters:
+      destdir
+        Directory to write the .wiki file to.
+      name
+       Name of the file without ".wiki". If None,
+       object.__name__ is used.
     """
     doc = WikiDoc().document(object)
     # Add a space to all lines.
     text = '\n'.join('%s ' % t for t in doc.splitlines())
-    # Surround all underscores with backtick but only if not surrounded by alnums.
+    # Escape all underscores if not surrounded by alnums.
     text = re.sub(r'[a-zA-Z0-9]_[a-zA-Z0-9]', lambda m: m.group(0).replace('_', '\x01'),
                   text).replace('_', '`_`').replace('\x01', '_')
-    # Same for a star.
+    # Escape all asterisks if not surrounded by alnums.
     text = re.sub(r'[a-zA-Z0-9]*[a-zA-Z0-9]', lambda m: m.group(0).replace('*', '\x01'),
                   text).replace('*', '`*`').replace('\x01', '*')
-    # Fix the bolds added by WikiDoc class.
+    # Now that asterisk are escaped, fix the bold markers added by WikiDoc class.
     text = text.replace('\xff', '*')
     text = '<pre>\n%s</pre>' % text
     if name is None:

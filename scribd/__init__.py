@@ -571,6 +571,11 @@ class Document(Resource):
         Has to be called after a resource attribute has been altered
         to make the change permanent.
 
+        Refer to the "Parameters" section of:
+        http://www.scribd.com/developers/api?method_name=docs.changeSettings
+        for the names and descriptions of the resource attributes
+        that are saved by this call.
+
         Requires the document owner to be the user that uploaded this
         document.
         """
@@ -594,6 +599,18 @@ class Document(Resource):
         doc = self.owner.upload(file, rev_id=self.doc_id, **kwargs)
         # Note. Currently the attributes are same as during initial upload.
         self._attributes.update(doc._attributes)
+        
+    def get_scribd_url(self):
+        """Returns a link to the document's page on scribd.com."""
+        title = ''
+        try:
+            title = self.title.encode('ascii', 'replace')
+            for c in ';/?:@&=+$,.':
+                title = title.replace(c, ' ')
+            title = '-'.join(title.split())
+        except:
+            pass
+        return 'http://www.scribd.com/doc/%s/%s' % (self.doc_id, title)
 
     def _get_id(self):
         return self.doc_id
