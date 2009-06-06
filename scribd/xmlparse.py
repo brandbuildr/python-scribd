@@ -3,7 +3,10 @@ xml.dom.minidom objects. It supports a limited subset
 of its features and is meant for very simple xml
 files only.
 
-Copyright (c) 2009 Arkadiusz Wahlig <arkadiusz.wahlig@gmail.com>
+Copyright (c) 2009, Arkadiusz Wahlig <arkadiusz.wahlig@gmail.com>
+
+Distributed under the new BSD License, see the
+accompanying LICENSE file for more information.
 '''
 
 from xml.dom import minidom
