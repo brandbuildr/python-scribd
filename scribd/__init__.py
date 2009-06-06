@@ -16,7 +16,7 @@ Copyright (c) 2009 Arkadiusz Wahlig <arkadiusz.wahlig@gmail.com>
 __version__ = '0.9.6'
 
 __all__ = ['NotReadyError', 'MalformedResponseError', 'ResponseError',
-           'Resource', 'User', 'CustomUser', 'Document', 'login',
+           'Resource', 'User', 'VirtualUser', 'Document', 'login',
            'signup', 'update', 'find', 'xfind', 'config', 'api_user']
            
 __author__ = 'Arkadiusz Wahlig <arkadiusz.wahlig@gmail.com>'
@@ -481,7 +481,7 @@ class Document(Resource):
         return str(xml.get('conversion_status').text)
 
     def delete(self):
-        '''Deletes the document from Scribd service.
+        '''Deletes the document from Scribd platform.
         '''
         self._send_request('docs.delete', doc_id=self.doc_id)
 
@@ -742,7 +742,7 @@ def config(key, secret):
         The API secret assigned to your Scribd user account.
     
     API key and secret values are obtained by signing up for a Scribd
-    account and registering it as an API account. The service will in
+    account and registering it as an API account. The website will in
     turn provide you with both values.
     '''
     global api_key, api_secret
