@@ -602,14 +602,12 @@ class Document(Resource):
         
     def get_scribd_url(self):
         """Returns a link to the document's page on scribd.com."""
-        title = ''
-        try:
-            title = self.title.encode('ascii', 'replace')
-            for c in ';/?:@&=+$,.':
-                title = title.replace(c, ' ')
-            title = '-'.join(title.split())
-        except:
-            pass
+        chars = []
+        for c in self.title.encode('ascii', 'replace'):
+            if not c.isalnum():
+                c = ' '
+            chars.append(str(c))
+        title = '-'.join(''.join(chars).split())
         return 'http://www.scribd.com/doc/%s/%s' % (self.doc_id, title)
 
     def _get_id(self):
