@@ -109,8 +109,9 @@ class ResponseError(Exception):
 
 class Resource(object):
     """Base class for remote objects that the Scribd API allows
-    to interact with. This class is never instantiated, only
-    subclassed.
+    to interact with.
+    
+    This class is never instantiated, only subclassed.
     
     Every object features a set of resource attributes that are
     stored and managed by the Scribd platform. They are accessed
@@ -226,6 +227,9 @@ class User(Resource):
           
           Parameters "api_key", "api_sig", "session_key", "my_user_id"
           are managed internally by the library.
+          
+        Returns:
+          A list of [Document] objects.
         """
         xml = self._send_request('docs.getList', **kwargs)
         return [Document(result, self) for result in xml.get('resultset')]
@@ -249,6 +253,9 @@ class User(Resource):
             call. The generator repeats the calls until all documents are
             returned.
 
+        Returns:
+          A generator object yielding [Document] objects.
+
         Note. If you're not interested in all documents (currently there
         may be max. 1000 of them), just stop iterating the generator object.
         """
@@ -271,6 +278,9 @@ class User(Resource):
           doc_id
             (required) Identifier of the document to be returned.
             The user has to be the owner of this document.
+
+        Returns:
+          A [Document] objects.
         """
         xml = self._send_request('docs.getSettings', doc_id=doc_id)
         return Document(xml, self)
@@ -303,6 +313,9 @@ class User(Resource):
           later if you have can determine the documents owner yourself.
           Refer to the Document class for operations requiring a proper
           owner object.
+
+        Returns:
+          A list of [Document] objects.
         """
         kwargs['num_results'] = kwargs.get('limit', None)
         kwargs['num_start'] = kwargs.get('offset', 0) + 1
@@ -332,6 +345,9 @@ class User(Resource):
           page_size
             (optional) The number of documents acquired by a single API
             call. The calls are repeated until all documents are returned.
+
+        Returns:
+          A generator object yielding [Document] objects.
 
         Note. If you're not interested in all documents (currently there
         may be max. 1000 of them), just stop iterating the generator object.
@@ -369,6 +385,9 @@ class User(Resource):
             If set to a file object, the file is loaded into memory using the
             read() method and uploaded. The name of the file is obtained from
             the "name" attribute.
+
+        Returns:
+          A [Document] objects.
         """
         if isinstance(file, str):
             method = 'docs.uploadFromUrl'
@@ -394,6 +413,9 @@ class User(Resource):
 
           Parameters "api_key", "api_sig", "session_key", "my_user_id"
           are managed internally by the library.
+
+        Returns:
+          An URL (string).
         """
         xml = self._send_request('user.getAutoSigninUrl', next_url=next_url)
         return str(xml.get('url').text)
@@ -411,7 +433,7 @@ class VirtualUser(User):
     
     Virtual users are created just by instantiating this class passing the
     name of the virtual user to the constructor. This will most probably
-    by the name used by your own authentication system.
+    be the name used by your own authentication system.
 
     Because this is a subclass of the User class, the virtual users provide
     the same set of operations (except get_autologin_url()) as normal users.
@@ -496,6 +518,9 @@ class Document(Resource):
 
           Parameters "api_key", "api_sig", "session_key", "my_user_id",
           "doc_id" are managed internally by the library.
+          
+        Returns:
+          An URL (string).
         """
         xml = self._send_request('docs.getDownloadUrl', doc_id=self.doc_id,
                                  doc_type=doc_type)
@@ -636,6 +661,9 @@ def login(username, password):
         Name of the user.
       password
         The user's password.
+
+    Returns:
+      A [User] object.
     """
     return User(send_request('user.login', username=username, password=password))
 
@@ -651,6 +679,9 @@ def signup(username, password, email, name=None):
         Password of the new user.
       email
         E-mail address of the user.
+
+    Returns:
+      A [User] object.
     """
     return User(send_request('user.signup', username=username, password = password,
                              email=email, name=name))
@@ -661,7 +692,7 @@ def update(docs, **fields):
     
     Parameters:
       docs
-        A sequence of document objects.
+        A sequence of [Document] objects.
       keyword arguments
         Document attributes to set.
     
@@ -705,6 +736,9 @@ def find(query, **kwargs):
     Parameters:
       Refer to User.find() method.
       
+    Returns:
+      A list of [Document] objects.
+
     This function searches for public documents by default.
     
     The returned document have the owner attribute set to the
@@ -722,6 +756,9 @@ def xfind(query, **kwargs):
     Parameters:
       Refer to User.xfind() method.
       
+    Returns:
+      A generator object yielding [Document] objects.
+
     This function searches for public documents by default.
     
     The returned document have the owner attribute set to the
