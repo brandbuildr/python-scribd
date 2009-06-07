@@ -33,13 +33,14 @@ class WikiDoc(pydoc.TextDoc):
             return _visiblename(name, all)
         pydoc.visiblename = visiblename
         _classname = pydoc.classname
-        def classname(object, modname):
-            name = _classname(object, modname)
+        def classname(cls, modname):
+            name = _classname(cls, modname)
             # Name lookup falls back to built-ins anyway.
             if name.startswith('__builtin__.'):
                 name = name[12:]
             # Turn top-level class names into wiki links.
-            if hasattr(sys.modules[modname], name):
+            if hasattr(sys.modules[modname], name) and \
+                    cls is not object:
                 name = '[%s]' % name
             return name
         pydoc.classname = classname
