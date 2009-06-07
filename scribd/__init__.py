@@ -17,7 +17,7 @@ Distributed under the new BSD License, see the
 accompanying LICENSE file for more information.
 """
 
-__version__ = '0.9.6'
+__version__ = '0.9.7'
 
 __all__ = ['NotReadyError', 'MalformedResponseError', 'ResponseError',
            'Resource', 'User', 'VirtualUser', 'Document', 'login',
@@ -367,8 +367,9 @@ class User(Resource):
             if kwargs['num_start'] >= int(results.attrs['totalResultsAvailable']):
                 break
 
-    def upload(self, file, **kwargs):
-        """Uploads a new document and returns a document object.
+    def upload(self, file, name=None, **kwargs):
+        """Uploads a file object as a new document and returns the
+        corresponding document object.
         
         Parameters:
             Refer to the "Parameters" section of:
@@ -377,31 +378,78 @@ class User(Resource):
             Parameters "api_key", "api_sig", "session_key", "my_user_id"
             are managed internally by the library.
 
-            Parameter "file" has a different meaning.
+            Parameter "file" is documented below.
 
-        Modified parameters:          
           file
-            (required) File to upload. Either a file-alike object or an URL
-            string. If set to an URL, the file is uploaded from that URL.
-            If set to a file object, the file is loaded into memory using the
-            read() method and uploaded. The name of the file is obtained from
-            the "name" attribute.
+            (required) File-alike object to upload. The file is loaded
+            into memory using the read() method and uploaded.
+          name
+            (optional) Name of the file. Either a full path or just the
+            name. Only the name is used. Does not have to point to an
+            existing file. If None, the name will be read from the "name"
+            attribute of the file object (all true file objects provide
+            the "name" attribute).
 
         Returns:
             A [Document] object.
         """
-        if isinstance(file, str):
-            method = 'docs.uploadFromUrl'
-            kwargs['url'] = file
-            if 'doc_type' not in kwargs:
-                kwargs['doc_type'] = os.path.splitext(file)[-1]
-        else:
-            method = 'docs.upload'
-            kwargs['file'] = file
-            if 'doc_type' not in kwargs:
-                kwargs['doc_type'] = os.path.splitext(file.name)[-1]
+        if name is None:
+            name = file.name
+        return self.upload_raw(file.read(), name, **kwargs)
+        
+    def upload_from_url(self, url, **kwargs):
+        """Uploads a file from a remote URL as a new document and returns
+        the corresponding document object.
+        
+        Parameters:
+            Refer to the "Parameters" section of:
+            http://www.scribd.com/developers/api?method_name=docs.upload
+
+            Parameters "api_key", "api_sig", "session_key", "my_user_id"
+            are managed internally by the library.
+            
+            Parameter "file" is not supported.
+
+          url
+            (required) A URL of the document to upload.
+
+        Returns:
+            A [Document] object.
+        """
+        if 'doc_type' not in kwargs:
+            kwargs['doc_type'] = os.path.splitext(url)[-1]
         kwargs['doc_type'] = kwargs['doc_type'].lstrip('.').lower()
-        xml = self._send_request(method, **kwargs)
+        xml = self._send_request('docs.uploadFromUrl', url=url, **kwargs)
+        return Document(xml, self)
+        
+    def upload_raw(self, data, name, **kwargs):
+        """Uploads a file from a raw buffer as a new document and returns
+        the corresponding document object.
+        
+        Parameters:
+            Refer to the "Parameters" section of:
+            http://www.scribd.com/developers/api?method_name=docs.upload
+
+            Parameters "api_key", "api_sig", "session_key", "my_user_id"
+            are managed internally by the library.
+            
+            Parameter "file" is not supported.
+
+          data
+            (required) A raw document file data to upload.
+          name
+            (required) Name of the uploaded file. Either a full path or
+            just the name. Only the name is used. Does not have to point
+            to an existing file.
+
+        Returns:
+            A [Document] object.
+        """
+        name = os.path.basename(name)
+        if 'doc_type' not in kwargs:
+            kwargs['doc_type'] = os.path.splitext(name)[-1]
+        kwargs['doc_type'] = kwargs['doc_type'].lstrip('.').lower()
+        xml = self._send_request('docs.upload', file=(data, name), **kwargs)
         return Document(xml, self)
 
     def get_autologin_url(self, next_url=''):
@@ -656,9 +704,12 @@ def send_request(method, **fields):
     for k, v in fields.items():
         if v is not None:
             if isinstance(v, unicode):
-                sign_fields[k] = v.encode('utf8')
+                v = v.encode('utf8')
+            elif isinstance(v, tuple):
+                v = (v[0], str(v[1]))
             else:
-                sign_fields[k] = str(v)
+                v = str(v)
+            sign_fields[k] = v
     fields = sign_fields.copy()
 
     deb_fields = fields.copy()
@@ -669,7 +720,6 @@ def send_request(method, **fields):
     sign_fields.pop('file', None)
     sign_fields = sign_fields.items()
     sign_fields.sort()
-
     sign = md5(api_secret + ''.join(k + v for k, v in sign_fields))
     fields['api_sig'] = sign.hexdigest()
 

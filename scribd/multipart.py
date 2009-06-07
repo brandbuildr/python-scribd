@@ -10,16 +10,25 @@ and final touches by me, Arkadiusz Wahlig.
 
 import httplib
 import mimetypes
-import os
 
 
 def post_multipart(host, selector, fields=(), headers=None, port=80):
     '''Posts a multipart/form-data request to an HTTP host/port.
-    fields is a sequence of (name, value) elements representing the form
-    fields where name is a string and value may be a string or a file-a-like
-    object providing a read() method and a name attribute.
-    headers is a dictionary of additional HTTP headers.
-    Returns the httplib.HTTPResponse object.
+    
+    Parameters:
+      host
+        HTTP host name.
+      selector
+        HTTP request path.
+      fields
+        POST fields. A sequence of (name, value) tuples where "name" is the
+        field name and "value" may be either a string or a (data, name)
+        tuple in which case the "data" will be sent as a file of name "name".
+      headers
+        A mapping of additional HTTP headers.
+        
+    Returns:
+        A httplib.HTTPResponse object.
     '''
     content_type, body = encode_multipart_formdata(fields)
     h = httplib.HTTPConnection(host, port)
@@ -32,22 +41,16 @@ def post_multipart(host, selector, fields=(), headers=None, port=80):
 
 
 def encode_multipart_formdata(fields):
-    '''fields is an iterable of (name, value) elements representing the form
-    fields where name is a string and value may be a string or a file-a-like
-    object providing a read() method and a name attribute.
-    Returns a (content_type, encoded_body) tuple.
-    '''
     BOUNDARY = '----------ThIs_Is_tHe_bouNdaRY_$'
-    CRLF = '\r\n'
     L = []
     for key, value in fields:
-        if hasattr(value, 'read') and hasattr(value, 'name'): # file
-            filename = os.path.basename(value.name)
+        if isinstance(value, tuple): # file
+            data, name = value
             L.append('--' + BOUNDARY)
-            L.append('Content-Disposition: form-data; name="%s"; filename="%s"' % (key, filename))
-            L.append('Content-Type: %s' % get_content_type(filename))
+            L.append('Content-Disposition: form-data; name="%s"; filename="%s"' % (key, name))
+            L.append('Content-Type: %s' % get_content_type(name))
             L.append('')
-            L.append(value.read())
+            L.append(data)
         elif isinstance(value, str): # str
             L.append('--' + BOUNDARY)
             L.append('Content-Disposition: form-data; name="%s"' % key)
@@ -57,7 +60,7 @@ def encode_multipart_formdata(fields):
             raise TypeError('value must be a file or str, not %s' % type(value).__name__)
     L.append('--' + BOUNDARY + '--')
     L.append('')
-    body = CRLF.join(L)
+    body = '\r\n'.join(L)
     content_type = 'multipart/form-data; boundary=%s' % BOUNDARY
     return content_type, body
 
