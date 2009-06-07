@@ -728,9 +728,9 @@ def send_request(method, **fields):
     try:
         xml = xmlparse.parse(resp)
         if xml.name != 'rsp':
-            raise Exception
-    except:
-        raise MalformedResponseError('remote host response could not be interpreted')
+            raise Exception(xml.toxml())
+    except Exception, err:
+        raise MalformedResponseError('remote host response could not be interpreted (%s)' % str(err))
 
     logger.debug('Response: %s', xml.toxml())
 
