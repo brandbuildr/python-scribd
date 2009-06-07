@@ -256,7 +256,7 @@ class User(Resource):
           page_size
             (optional) The number of documents acquired by a single API
             call. The generator repeats the calls until all documents are
-            returned.
+            returned. Defaults to 100.
 
         Returns:
             A generator object yielding [Document] objects.
@@ -264,15 +264,13 @@ class User(Resource):
         Note. If you're not interested in all documents (currently there
         may be max. 1000 of them), just stop iterating the generator object.
         """
-        kwargs['limit'] = kwargs.get('page_size', None)
+        kwargs['limit'] = kwargs.pop('page_size', 100)
         while True:
             xml = self._send_request('docs.getList', **kwargs)
             results = xml.get('resultset')
-            if len(results) == 0:
-                break
             for result in results:
                 yield Document(result, self)
-            if len(results) < kwargs.get('limit', 0):
+            if len(results) < kwargs['limit']:
                 break
             kwargs['offset'] = kwargs.get('offset', 0) + len(results)
 
@@ -322,8 +320,8 @@ class User(Resource):
         Returns:
             A list of [Document] objects.
         """
-        kwargs['num_results'] = kwargs.get('limit', None)
-        kwargs['num_start'] = kwargs.get('offset', 0) + 1
+        kwargs['num_results'] = kwargs.pop('limit', None)
+        kwargs['num_start'] = kwargs.pop('offset', 0) + 1
         xml = self._send_request('docs.search', query=query, **kwargs)
         owner = api_user
         if kwargs.get('scope', 'user') == 'user':
@@ -735,7 +733,12 @@ def send_request(method, **fields):
 
     start_time = time()
     while True:
-        resp = post_multipart(HOST, REQUEST_PATH, fields.items(), port=PORT)
+        try:
+            resp = post_multipart(HOST, REQUEST_PATH, fields.items(), port=PORT)
+        except Exception, err:
+            if time() - start_time < 10:
+                continue
+            raise NotReadyError(str(err))
         
         status = resp.getheader('Status', '200').split()[0]
         if status == '200':
@@ -757,6 +760,8 @@ def send_request(method, **fields):
             if time() - start_time < 10:
                 continue
             raise NotReadyError('remote host internal error')
+        else:
+            raise NotReadyError('remote host status error: %s' % status)
         break
 
     logger.debug('Response: %s', xml.toxml())
