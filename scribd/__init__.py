@@ -17,7 +17,7 @@ Distributed under the new BSD License, see the
 accompanying LICENSE file for more information.
 """
 
-__version__ = '0.9.7'
+__version__ = '0.9.8'
 
 __all__ = ['NotReadyError', 'MalformedResponseError', 'ResponseError',
            'Resource', 'User', 'VirtualUser', 'Document', 'login',
@@ -31,6 +31,7 @@ __all__ = ['NotReadyError', 'MalformedResponseError', 'ResponseError',
 import sys
 import logging
 import os
+from time import time
 
 # Both md5 module (deprecated since Python 2.5) and hashlib provide the
 # same md5 object.
@@ -73,14 +74,14 @@ class NotReadyError(Error):
     secret are set.
     """
     
-    def __init__(self, errstr):
+    def __init__(self, errstr='error'):
         Exception.__init__(self, str(errstr))
 
 
 class MalformedResponseError(Error):
     """Exception raised if a malformed response is received from the HOST."""
     
-    def __init__(self, errstr):
+    def __init__(self, errstr='error'):
         Exception.__init__(self, str(errstr))
 
 
@@ -91,7 +92,7 @@ class ResponseError(Error):
     for explanation of the error codes.
     """
     
-    def __init__(self, errno, errstr):
+    def __init__(self, errno=-1, errstr='error'):
         Exception.__init__(self, int(errno), str(errstr))
 
     def __str__(self):
@@ -732,14 +733,31 @@ def send_request(method, **fields):
     sign = md5(api_secret + ''.join(k + v for k, v in sign_items))
     fields['api_sig'] = sign.hexdigest()
 
-    resp = post_multipart(HOST, REQUEST_PATH, fields.items(), port=PORT)
-
-    try:
-        xml = xmlparse.parse(resp)
-        if xml.name != 'rsp':
-            raise Exception(xml.toxml())
-    except Exception, err:
-        raise MalformedResponseError('remote host response could not be interpreted (%s)' % str(err))
+    start_time = time()
+    while True:
+        resp = post_multipart(HOST, REQUEST_PATH, fields.items(), port=PORT)
+        
+        status = resp.getheader('Status', '200').split()[0]
+        if status == '200':
+            # Content-Type must be application/xml.
+            ctype = resp.getheader('Content-Type', 'text/plain').split(';')[0]
+            if ctype == 'application/xml':
+                try:
+                    xml = xmlparse.parse(resp)
+                    if xml.name != 'rsp':
+                        raise Exception
+                except:
+                    raise MalformedResponseError(
+                            'remote host response could not be interpreted')
+            else:
+                raise MalformedResponseError(
+                        'unexpected remote host response format: %s' % ctype)
+        elif status == '500': # Internal Server Error
+            # Retrying usually helps if this happens so lets do so for max. 10 seconds.
+            if time() - start_time < 10:
+                continue
+            raise NotReadyError('remote host internal error')
+        break
 
     logger.debug('Response: %s', xml.toxml())
 

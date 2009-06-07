@@ -8,11 +8,10 @@ with modifications to use HTTPConnection class by Chris Hoke
 and final touches by me, Arkadiusz Wahlig.
 '''
 
+import sys
 import httplib
 import mimetypes
-
-
-BOUNDARY = '--$$$--$$-ThIs_Is_tHe_bouNdaRY-----$-----$$-'
+from random import randrange
 
 
 def post_multipart(host, selector, fields=(), headers=None, port=None):
@@ -33,39 +32,33 @@ def post_multipart(host, selector, fields=(), headers=None, port=None):
     Returns:
         A httplib.HTTPResponse object.
     '''
-    body = encode_multipart_formdata(fields)
-    hdrs = {'Content-Type': 'multipart/form-data; boundary=%s' % BOUNDARY,
-            'Content-Length': str(len(body))}
-    if headers is not None:
-        hdrs.update(headers)
+    boundary = '----------%s--%s----------' % \
+        (randrange(sys.maxint), randrange(sys.maxint))
+    if headers is None:
+        headers = {}
+    headers['Content-Type'] = 'multipart/form-data; boundary=%s' % boundary
+    body = encode_multipart_formdata(fields, boundary)
     h = httplib.HTTPConnection(host, port)
-    h.request('POST', selector, body, hdrs)
+    h.request('POST', selector, body, headers)
     return h.getresponse()
 
 
-def encode_multipart_formdata(fields):
+def encode_multipart_formdata(fields, boundary):
     lines = []
     for key, value in fields:
+        lines.append('--' + boundary)
         if isinstance(value, tuple): # file
             data, name = value
-            lines.append('--' + BOUNDARY)
+            ctype = mimetypes.guess_type(name)[0] or 'application/octet-stream'
             lines.append('Content-Disposition: form-data; name="%s"; filename="%s"' % (key, name))
-            lines.append('Content-Type: %s' % get_content_type(name))
+            lines.append('Content-Type: %s' % ctype)
             lines.append('')
             lines.append(data)
         elif isinstance(value, str): # str
-            lines.append('--' + BOUNDARY)
             lines.append('Content-Disposition: form-data; name="%s"' % key)
             lines.append('')
             lines.append(value)
         else:
             raise TypeError('value must be a tuple or str, not %s' % type(value).__name__)
-    lines.append('--' + BOUNDARY + '--')
-    lines.append('')
+    lines.append('--' + boundary + '--')
     return '\r\n'.join(lines)
-
-
-def get_content_type(filename):
-    '''Guesses the content type based on a filename.
-    '''
-    return mimetypes.guess_type(filename)[0] or 'application/octet-stream'
