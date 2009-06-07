@@ -12,7 +12,10 @@ import httplib
 import mimetypes
 
 
-def post_multipart(host, selector, fields=(), headers=None, port=80):
+BOUNDARY = '--$$$--$$-ThIs_Is_tHe_bouNdaRY-----$-----$$-'
+
+
+def post_multipart(host, selector, fields=(), headers=None, port=None):
     '''Posts a multipart/form-data request to an HTTP host/port.
     
     Parameters:
@@ -30,39 +33,36 @@ def post_multipart(host, selector, fields=(), headers=None, port=80):
     Returns:
         A httplib.HTTPResponse object.
     '''
-    content_type, body = encode_multipart_formdata(fields)
-    h = httplib.HTTPConnection(host, port)
-    hdrs = {'Content-Type': content_type,
+    body = encode_multipart_formdata(fields)
+    hdrs = {'Content-Type': 'multipart/form-data; boundary=%s' % BOUNDARY,
             'Content-Length': str(len(body))}
     if headers is not None:
         hdrs.update(headers)
+    h = httplib.HTTPConnection(host, port)
     h.request('POST', selector, body, hdrs)
     return h.getresponse()
 
 
 def encode_multipart_formdata(fields):
-    BOUNDARY = '----------ThIs_Is_tHe_bouNdaRY_$'
-    L = []
+    lines = []
     for key, value in fields:
         if isinstance(value, tuple): # file
             data, name = value
-            L.append('--' + BOUNDARY)
-            L.append('Content-Disposition: form-data; name="%s"; filename="%s"' % (key, name))
-            L.append('Content-Type: %s' % get_content_type(name))
-            L.append('')
-            L.append(data)
+            lines.append('--' + BOUNDARY)
+            lines.append('Content-Disposition: form-data; name="%s"; filename="%s"' % (key, name))
+            lines.append('Content-Type: %s' % get_content_type(name))
+            lines.append('')
+            lines.append(data)
         elif isinstance(value, str): # str
-            L.append('--' + BOUNDARY)
-            L.append('Content-Disposition: form-data; name="%s"' % key)
-            L.append('')
-            L.append(value)
+            lines.append('--' + BOUNDARY)
+            lines.append('Content-Disposition: form-data; name="%s"' % key)
+            lines.append('')
+            lines.append(value)
         else:
-            raise TypeError('value must be a file or str, not %s' % type(value).__name__)
-    L.append('--' + BOUNDARY + '--')
-    L.append('')
-    body = '\r\n'.join(L)
-    content_type = 'multipart/form-data; boundary=%s' % BOUNDARY
-    return content_type, body
+            raise TypeError('value must be a tuple or str, not %s' % type(value).__name__)
+    lines.append('--' + BOUNDARY + '--')
+    lines.append('')
+    return '\r\n'.join(lines)
 
 
 def get_content_type(filename):

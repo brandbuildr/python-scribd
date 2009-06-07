@@ -64,16 +64,11 @@ api_secret = ''
 # Exceptions
 #
 
-class NullHandler(logging.Handler):
-    """Empty logging handler used to prevent a warning if the application
-    doesn't use the logging module.
-    """
+class Error(Exception):
+    """Base class for all exceptions in this package."""
     
-    def emit(self, record):
-        pass
 
-
-class NotReadyError(Exception):
+class NotReadyError(Error):
     """Exception raised if operation is attempted before the API key and
     secret are set.
     """
@@ -82,14 +77,14 @@ class NotReadyError(Exception):
         Exception.__init__(self, str(errstr))
 
 
-class MalformedResponseError(Exception):
+class MalformedResponseError(Error):
     """Exception raised if a malformed response is received from the HOST."""
     
     def __init__(self, errstr):
         Exception.__init__(self, str(errstr))
 
 
-class ResponseError(Exception):
+class ResponseError(Error):
     """Exception raised if HOST responses with an error message.
        
     Refer to the API documentation (Error codes section of various methods)
@@ -106,6 +101,15 @@ class ResponseError(Exception):
 #
 # Classes
 #
+
+class NullHandler(logging.Handler):
+    """Empty logging handler used to prevent a warning if the application
+    doesn't use the logging module.
+    """
+    
+    def emit(self, record):
+        pass
+
 
 class Resource(object):
     """Base class for remote objects that the Scribd API allows
@@ -445,6 +449,7 @@ class User(Resource):
         Returns:
             A [Document] object.
         """
+        assert isinstance(data, str)
         name = os.path.basename(name)
         if 'doc_type' not in kwargs:
             kwargs['doc_type'] = os.path.splitext(name)[-1]
@@ -700,27 +705,31 @@ def send_request(method, **fields):
     fields['method'] = method
     fields['api_key'] = api_key
 
-    sign_fields = {}
     for k, v in fields.items():
-        if v is not None:
+        if v is None:
+            del fields[k]
+        else:
             if isinstance(v, unicode):
                 v = v.encode('utf8')
             elif isinstance(v, tuple):
                 v = (v[0], str(v[1]))
             else:
                 v = str(v)
-            sign_fields[k] = v
-    fields = sign_fields.copy()
+            fields[k] = v
 
     deb_fields = fields.copy()
     del deb_fields['method'], deb_fields['api_key']
+    t = deb_fields.get('file', None)
+    if t is not None:
+        deb_fields['file'] = (t[0][:16] + '(...)', t[1])
     logger.debug('Request: %s(%s)', method,
                  ', '.join('%s=%s' % (k, repr(v)) for k, v in deb_fields.items()))
 
+    sign_fields = fields.copy()
     sign_fields.pop('file', None)
-    sign_fields = sign_fields.items()
-    sign_fields.sort()
-    sign = md5(api_secret + ''.join(k + v for k, v in sign_fields))
+    sign_items = sign_fields.items()
+    sign_items.sort()
+    sign = md5(api_secret + ''.join(k + v for k, v in sign_items))
     fields['api_sig'] = sign.hexdigest()
 
     resp = post_multipart(HOST, REQUEST_PATH, fields.items(), port=PORT)
