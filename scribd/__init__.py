@@ -731,10 +731,12 @@ def send_request(method, **fields):
     sign = md5(api_secret + ''.join(k + v for k, v in sign_items))
     fields['api_sig'] = sign.hexdigest()
 
+    headers = {'Cache-Control': 'no-store'}
+
     start_time = time()
     while True:
         try:
-            resp = post_multipart(HOST, REQUEST_PATH, fields.items(), port=PORT)
+            resp = post_multipart(HOST, REQUEST_PATH, fields.items(), headers, PORT)
         except Exception, err:
             if time() - start_time < 10:
                 continue
