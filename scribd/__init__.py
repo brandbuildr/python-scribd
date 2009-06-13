@@ -653,7 +653,12 @@ class Document(Resource):
         self._attributes.update(doc._attributes)
         
     def get_scribd_url(self):
-        """Returns a link to the document's page on scribd.com."""
+        """Returns a link to the document's page on scribd.com.
+        
+        Works for private documents too by adding the secret
+        password to the link. May call the load() method to
+        obtain the secret password.
+        """
         try:
             chars = []
             for c in self.title.encode('ascii', 'replace'):
@@ -663,6 +668,14 @@ class Document(Resource):
             title = '-'.join(''.join(chars).split())
         except AttributeError:
             title = ''
+        try:
+            if not hasattr(self, 'access'):
+                self.load()
+        except Error:
+            pass
+        else:
+            if self.access == 'private':
+                title += '?secret_password=' + self.secret_password
         return 'http://www.scribd.com/doc/%s/%s' % (self.doc_id, title)
 
     def _get_id(self):
