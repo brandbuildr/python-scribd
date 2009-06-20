@@ -664,22 +664,36 @@ class Document(Resource):
             return True
         return False
         
-    def replace(self, file, **kwargs):
-        """Uploads a new document file in place of the current one. All
-        attributes including doc_id and title remain intact.
+    def replace(self, file, name=None, **kwargs):
+        """Uploads a new file in place of the current document. All
+        resource attributes including doc_id remain intact.
         
         Parameters:
-            Refer to the User.upload() method.
+            Refer to the [User].upload() method.
           
             Parameter "rev_id" is managed internally by the library.
 
         Requires the document owner to be the user that uploaded this
         document.
         """
-        doc = self.owner.upload(file, rev_id=self.doc_id, **kwargs)
-        # Note. Currently the attributes are same as during initial upload.
+        doc = self.owner.upload(file, name, rev_id=self.doc_id, **kwargs)
         self._attributes.update(doc._attributes)
+
+    def replace_from_url(self, url, **kwargs):
+        """Uploads a new file from a remote URL in place of the current
+        document. All resource attributes including doc_id remain intact.
         
+        Parameters:
+            Refer to the [User].upload_from_url() method.
+
+            Parameter "rev_id" is managed internally by the library.
+
+        Requires the document owner to be the user that uploaded this
+        document.
+        """
+        doc = self.owner.upload_from_url(url, rev_id=self.doc_id, **kwargs)
+        self._attributes.update(doc._attributes)
+
     def get_scribd_url(self):
         """Returns a link to the document's page on scribd.com.
         
