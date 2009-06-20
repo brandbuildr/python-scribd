@@ -123,10 +123,6 @@ class Resource(object):
     and used like any other Python object attributes but are
     stored in a separate container.
     """
-    
-    # Names of instance variables. This is used to distinguish
-    # between them and the resource attributes.
-    _varnames = ['_attributes', '_set_attributes']
 
     def __init__(self, xml=None):
         """Instantiates an object of the class.
@@ -136,6 +132,13 @@ class Resource(object):
         """
         self._attributes = {} # Attributes as loaded from the XML.
         self._set_attributes = {} # Attributes set externally.
+
+        # Create a list of instance variables. All variables used by
+        # the object during its lifetime have to be setup at this point.
+        # This is used to distinguish between instance variables and
+        # the resource attributes.
+        self._instance_vars_names = self.__dict__.keys()
+
         if xml is not None:
             self._load_attributes(xml)
             
@@ -170,21 +173,28 @@ class Resource(object):
             self._set_attributes.pop(element.name, None)
             
     def __getattr__(self, name):
-        if name not in self._varnames:
+        # The attribute is treated as a resource attribute if
+        # self._instance_vars_names is defined and it doesn't
+        # contain the attribute name.
+        if name not in self.__dict__.get('_instance_vars_names', (name,)):
             if name == 'id':
                 return self._get_id()
             try:
                 return self._set_attributes[name]
             except KeyError:
-                try:
-                    return self._attributes[name]
-                except KeyError:
-                    pass
+                pass
+            try:
+                return self._attributes[name]
+            except KeyError:
+                pass
         raise AttributeError('%s object has no attribute %s' % \
                              (repr(self.__class__.__name__), repr(name)))
             
     def __setattr__(self, name, value):
-        if name in self._varnames:
+        # The attribute is treated as a resource attribute if
+        # self._instance_vars_names is defined and it doesn't
+        # contain the attribute name.
+        if name in self.__dict__.get('_instance_vars_names', (name,)):
             object.__setattr__(self, name, value)         
         else:
             self._set_attributes[name] = value
@@ -506,8 +516,8 @@ class VirtualUser(User):
             with the same name, it will refer to the same set of
             documents.
         """
-        User.__init__(self)
         self.my_user_id = my_user_id
+        User.__init__(self)
         
     def _send_request(self, method, **fields):
         """Sends a request to the HOST and returns the XML response."""
@@ -530,17 +540,17 @@ class Document(Resource):
     Attributes:
       owner
         A [User] object owning the document. This always is a valid
-        object but may not be the true owner if it could not be
-        established. This may be the case if the document was obtained
-        from find() or xfind(). In worst case, owner will be set to
-        the scribd.api_user object which is the default user associated
-        with the current API account.
+        object but may not be the true owner of the document if it could
+        not be determined. This may be the case if the document was obtained
+        from find() or xfind() function/method. In the worst case, the owner
+        will be set to the scribd.api_user object which is the default user
+        associated with the current API account.
         
         You may set this attribute if you can determine the true owner
         yourself.
         
-        A true owner is needed to be able to change the document's
-        attributes.
+        Refer to the object methods documentation to learn which ones
+        require a true owner to be set.
     
     Resource attributes:
         The initial set of the attributes depend on how this object
@@ -566,13 +576,14 @@ class Document(Resource):
         if the object was obtained by the [User] object's get() method.
 
         If the owner attribute points to a true owner of the document,
-        load() method may be used to obtain the full set of attributes.
-        Refer to the method's documentation for more information.
-    """        
+        the load() method may be used to obtain a full set of resource
+        attributes. For more information refer to the load() method
+        documentation.
+    """
     
     def __init__(self, xml, owner):
-        Resource.__init__(self, xml)
         self.owner = owner
+        Resource.__init__(self, xml)
 
     def _send_request(self, method, **fields):
         """Sends a request to the HOST and returns the XML response."""
@@ -584,12 +595,19 @@ class Document(Resource):
         Returns:
             A string. Refer to the "Result explanation" section of:
             http://www.scribd.com/developers/api?method_name=docs.getConversionStatus
+
+        Requires the document owner to be the user that uploaded this
+        document.
         """
         xml = self._send_request('docs.getConversionStatus', doc_id=self.doc_id)
         return str(xml.get('conversion_status').text)
 
     def delete(self):
-        """Deletes the document from Scribd platform."""
+        """Deletes the document from Scribd platform.
+
+        Requires the document owner to be the user that uploaded this
+        document.
+        """
         self._send_request('docs.delete', doc_id=self.doc_id)
 
     def get_download_url(self, doc_type='original'):
@@ -654,6 +672,9 @@ class Document(Resource):
             Refer to the User.upload() method.
           
             Parameter "rev_id" is managed internally by the library.
+
+        Requires the document owner to be the user that uploaded this
+        document.
         """
         doc = self.owner.upload(file, rev_id=self.doc_id, **kwargs)
         # Note. Currently the attributes are same as during initial upload.
@@ -687,8 +708,6 @@ class Document(Resource):
 
     def _get_id(self):
         return self.doc_id
-
-Document._varnames.append('owner')
 
 
 #
