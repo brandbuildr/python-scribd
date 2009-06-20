@@ -17,7 +17,7 @@ Distributed under the new BSD License, see the
 accompanying LICENSE file for more information.
 """
 
-__version__ = '0.9.8'
+__version__ = '0.9.9'
 
 __all__ = ['NotReadyError', 'MalformedResponseError', 'ResponseError',
            'Resource', 'User', 'VirtualUser', 'Document', 'login',
@@ -235,6 +235,10 @@ class User(Resource):
           
         Returns:
             A list of [Document] objects.
+
+            Refer to "Result explanation" section of:
+            http://www.scribd.com/developers/api?method_name=docs.getList
+            for a list of document's initial resource attributes.
         """
         xml = self._send_request('docs.getList', **kwargs)
         return [Document(result, self) for result in xml.get('resultset')]
@@ -261,6 +265,10 @@ class User(Resource):
         Returns:
             A generator object yielding [Document] objects.
 
+            Refer to "Result explanation" section of:
+            http://www.scribd.com/developers/api?method_name=docs.getList
+            for a list of document's initial resource attributes.
+
         Note. If you're not interested in all documents (currently there
         may be max. 1000 of them), just stop iterating the generator object.
         """
@@ -284,6 +292,10 @@ class User(Resource):
 
         Returns:
             A [Document] object.
+
+            Refer to "Result explanation" section of:
+            http://www.scribd.com/developers/api?method_name=docs.getSettings
+            for a list of document's initial resource attributes.
         """
         xml = self._send_request('docs.getSettings', doc_id=doc_id)
         return Document(xml, self)
@@ -319,6 +331,10 @@ class User(Resource):
 
         Returns:
             A list of [Document] objects.
+
+            Refer to "Result explanation" section of:
+            http://www.scribd.com/developers/api?method_name=docs.search
+            for a list of document's initial resource attributes.
         """
         kwargs['num_results'] = kwargs.pop('limit', None)
         kwargs['num_start'] = kwargs.pop('offset', 0) + 1
@@ -351,6 +367,10 @@ class User(Resource):
 
         Returns:
             A generator object yielding [Document] objects.
+
+            Refer to "Result explanation" section of:
+            http://www.scribd.com/developers/api?method_name=docs.search
+            for a list of document's initial resource attributes.
 
         Note. If you're not interested in all documents (currently there
         may be max. 1000 of them), just stop iterating the generator object.
@@ -390,15 +410,24 @@ class User(Resource):
             (optional) Name of the file. Either a full path or just the
             name. Only the name is used. Does not have to point to an
             existing file. If None, the name will be read from the "name"
-            attribute of the file object (all true file objects provide
-            the "name" attribute).
+            attribute of the file object (objects created using the open()
+            built-in function provide this attribute).
 
         Returns:
             A [Document] object.
+
+            Refer to "Result explanation" section of:
+            http://www.scribd.com/developers/api?method_name=docs.upload
+            for a list of document's initial resource attributes.
         """
         if name is None:
             name = file.name
-        return self.upload_raw(file.read(), name, **kwargs)
+        name = os.path.basename(name)
+        if 'doc_type' not in kwargs:
+            kwargs['doc_type'] = os.path.splitext(name)[-1]
+        kwargs['doc_type'] = kwargs['doc_type'].lstrip('.').lower()
+        xml = self._send_request('docs.upload', file=(file.read(), name), **kwargs)
+        return Document(xml, self)
         
     def upload_from_url(self, url, **kwargs):
         """Uploads a file from a remote URL as a new document and returns
@@ -418,42 +447,15 @@ class User(Resource):
 
         Returns:
             A [Document] object.
+
+            Refer to "Result explanation" section of:
+            http://www.scribd.com/developers/api?method_name=docs.upload
+            for a list of document's initial resource attributes.
         """
         if 'doc_type' not in kwargs:
             kwargs['doc_type'] = os.path.splitext(url)[-1]
         kwargs['doc_type'] = kwargs['doc_type'].lstrip('.').lower()
         xml = self._send_request('docs.uploadFromUrl', url=url, **kwargs)
-        return Document(xml, self)
-        
-    def upload_raw(self, data, name, **kwargs):
-        """Uploads a file from a raw buffer as a new document and returns
-        the corresponding document object.
-        
-        Parameters:
-            Refer to the "Parameters" section of:
-            http://www.scribd.com/developers/api?method_name=docs.upload
-
-            Parameters "api_key", "api_sig", "session_key", "my_user_id"
-            are managed internally by the library.
-            
-            Parameter "file" is not supported.
-
-          data
-            (required) A raw document file data to upload.
-          name
-            (required) Name of the uploaded file. Either a full path or
-            just the name. Only the name is used. Does not have to point
-            to an existing file.
-
-        Returns:
-            A [Document] object.
-        """
-        assert isinstance(data, str)
-        name = os.path.basename(name)
-        if 'doc_type' not in kwargs:
-            kwargs['doc_type'] = os.path.splitext(name)[-1]
-        kwargs['doc_type'] = kwargs['doc_type'].lstrip('.').lower()
-        xml = self._send_request('docs.upload', file=(data, name), **kwargs)
         return Document(xml, self)
 
     def get_autologin_url(self, next_url=''):
@@ -546,17 +548,22 @@ class Document(Resource):
 
         Refer to "Result explanation" section of:
         http://www.scribd.com/developers/api?method_name=docs.getList
-        if the object was obtained by the [User] object's get(), all()
-        or xall() methods.
+        if the object was obtained by the [User] object's all() or
+        xall() methods.
       
         Refer to "Result explanation" section of:
         http://www.scribd.com/developers/api?method_name=docs.search
-        if the object was obtained by find() or xfind().
+        if the object was obtained by find() or xfind() (either global
+        functions or [User] object's methods).
       
         Refer to "Result explanation" section of:
         http://www.scribd.com/developers/api?method_name=docs.upload
-        if the object was obtained by the [User] object's upload()
-        method.
+        if the object was obtained by one of the [User] object's
+        uploads methods.
+
+        Refer to "Result explanation" section of:
+        http://www.scribd.com/developers/api?method_name=docs.getSettings
+        if the object was obtained by the [User] object's get() method.
 
         If the owner attribute points to a true owner of the document,
         load() method may be used to obtain the full set of attributes.
@@ -572,10 +579,10 @@ class Document(Resource):
         return self.owner._send_request(method, **fields)
 
     def get_conversion_status(self):
-        """Obtains and returns the document conversion status.
+        """Obtains and returns the document current conversion status.
         
         Returns:
-            Refer to the "Result explanation" section of:
+            A string. Refer to the "Result explanation" section of:
             http://www.scribd.com/developers/api?method_name=docs.getConversionStatus
         """
         xml = self._send_request('docs.getConversionStatus', doc_id=self.doc_id)
