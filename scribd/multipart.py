@@ -1,4 +1,5 @@
-'''Handles posting of HTTP multipart/form-data requests.
+"""
+Handles posting of HTTP multipart/form-data requests.
 
 Based on code posted by Wade Leftwich on:
 http://code.activestate.com/recipes/146306/
@@ -6,7 +7,7 @@ http://code.activestate.com/recipes/146306/
 with modifications to use HTTPConnection class by Chris Hoke
 
 and final touches by me, Arkadiusz Wahlig.
-'''
+"""
 
 import sys
 import httplib
@@ -15,7 +16,7 @@ from random import randrange
 
 
 def post_multipart(host, selector, fields=(), headers=None, port=None):
-    '''Posts a multipart/form-data request to an HTTP host/port.
+    """Posts a multipart/form-data request to an HTTP host/port.
     
     Parameters:
       host
@@ -28,10 +29,12 @@ def post_multipart(host, selector, fields=(), headers=None, port=None):
         tuple in which case the "data" will be sent as a file of name "name".
       headers
         A mapping of additional HTTP headers.
+      port
+        TCP/IP port. Defaults to 80.
         
     Returns:
         A httplib.HTTPResponse object.
-    '''
+    """
     boundary = '----------%s--%s----------' % \
         (randrange(sys.maxint), randrange(sys.maxint))
     if headers is None:
