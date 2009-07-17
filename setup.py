@@ -141,7 +141,7 @@ class wikidoc(Command):
     
 
 # start the distutils setup
-setup(name='scribd',
+setup(name='python-scribd',
       version=scribd.__version__,
       description='Scribd client library for Python.',
       long_description='A library providing a high-level object oriented interface to the scribd.com website RESTful API.',
