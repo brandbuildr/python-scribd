@@ -26,6 +26,10 @@ class WikiDoc(pydoc.TextDoc):
         # Monkey-patch some pydoc functions.
         _visiblename = pydoc.visiblename
         def visiblename(name, all=None):
+            # Show constructor if it has a docstring.
+            if name == '__init__' and getattr(object, '__init__', None):
+                if getattr(object.__init__, '__doc__', None):
+                    return 1
             # Hide all private and special names
             # in an effort to make the doc more readable.
             if name.startswith('_'):

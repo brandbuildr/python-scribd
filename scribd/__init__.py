@@ -68,6 +68,9 @@ api_secret = ''
 class Error(Exception):
     """Base class for all exceptions in this package."""
     
+    def __init__(self, *args, **kwargs):
+        Exception.__init__(self, *args, **kwargs)
+    
 
 class NotReadyError(Error):
     """Exception raised if operation is attempted before the API key and
@@ -125,11 +128,12 @@ class Resource(object):
     """
 
     def __init__(self, xml=None):
-        """Instantiates an object of the class.
-        
-        If "xml" is not None, it is a xmlparse.Element object whose
-        subelements are to be converted to this object's attributes.
-        """
+        # Instantiates an object of the class.
+        #
+        # If "xml" is not None, it is a xmlparse.Element object whose
+        # subelements are to be converted to this object's resource
+        # attributes.
+
         self._attributes = {} # Attributes as loaded from the XML.
         self._set_attributes = {} # Attributes set externally.
 
