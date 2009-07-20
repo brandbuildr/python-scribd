@@ -340,7 +340,7 @@ class User(Resource):
             the scribd.api_user which will impact the ability to change
             the document's properties. You may set the owner attributes
             later if you have can determine the documents owner yourself.
-            Refer to the Document class for operations requiring a proper
+            Refer to the [Document] class for operations requiring a proper
             owner object.
 
         Returns:
@@ -504,7 +504,7 @@ class VirtualUser(User):
     name of the virtual user to the constructor. This will most probably
     be the name used by your own authentication system.
 
-    Because this is a subclass of the User class, the virtual users provide
+    Because this is a subclass of the [User] class, the virtual users provide
     the same set of operations (except get_autologin_url()) as normal users.
     
     Resource attributes:
@@ -517,8 +517,7 @@ class VirtualUser(User):
         Parameters:
           my_user_id
             Name of the virtual user. Every time an object is created
-            with the same name, it will refer to the same set of
-            documents.
+            with the same name, it will refer to the same virtual user.
         """
         self.my_user_id = my_user_id
         User.__init__(self)
@@ -539,7 +538,7 @@ class VirtualUser(User):
 class Document(Resource):
     """Represents a Scribd document.
     
-    Use methods of the User objects to instantiate.
+    Use methods of the [User] objects to instantiate.
     
     Attributes:
       owner
@@ -842,7 +841,7 @@ def send_request(method, **fields):
 
 
 def login(username, password):
-    """Logs the given Scribd user in and returns the corresponding User object.
+    """Logs the given Scribd user in and returns the corresponding [User] object.
     
     Parameters:
       username
@@ -857,7 +856,7 @@ def login(username, password):
 
 
 def signup(username, password, email, name=None):
-    """Creates a new Scribd user and returns the corresponding User object.
+    """Creates a new Scribd user and returns the corresponding [User] object.
     The user is already logged in.
     
     Parameters:
@@ -922,7 +921,7 @@ def find(query, **kwargs):
     """Searches for public documents and returns a list of them.
 
     Parameters:
-        Refer to User.find() method.
+        Refer to [User].find() method.
       
     Returns:
         A list of [Document] objects.
@@ -942,7 +941,7 @@ def xfind(query, **kwargs):
     searching for documents and iterating over them.
     
     Parameters:
-        Refer to User.xfind() method.
+        Refer to [User].xfind() method.
       
     Returns:
         A generator object yielding [Document] objects.
