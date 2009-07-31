@@ -1,1 +1,3 @@
 include scribd/LICENSE
+include examples/*.py
+include examples/test.txt
