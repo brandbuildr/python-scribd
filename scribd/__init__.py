@@ -77,15 +77,15 @@ class NotReadyError(Error):
     secret are set.
     """
     
-    def __init__(self, errstr='error'):
-        Exception.__init__(self, str(errstr))
+    def __init__(self, message=''):
+        Exception.__init__(self, str(message))
 
 
 class MalformedResponseError(Error):
     """Exception raised if a malformed response is received from the HOST."""
     
-    def __init__(self, errstr='error'):
-        Exception.__init__(self, str(errstr))
+    def __init__(self, message=''):
+        Exception.__init__(self, str(message))
 
 
 class ResponseError(Error):
@@ -95,11 +95,13 @@ class ResponseError(Error):
     for explanation of the error codes.
     """
     
-    def __init__(self, errno=-1, errstr='error'):
-        Exception.__init__(self, int(errno), str(errstr))
+    def __init__(self, errno=0, strerror=''):
+        Exception.__init__(self, errno, strerror)
+        self.errno = errno
+        self.strerror = strerror
 
     def __str__(self):
-        return '[Errno %d] %s' % (self[0], self[1])
+        return '[Errno %d] %s' % (self.errno, self.strerror)
 
 
 #
@@ -351,7 +353,7 @@ class User(Resource):
             for a list of document's initial resource attributes.
         """
         kwargs['num_results'] = kwargs.pop('limit', None)
-        kwargs['num_start'] = kwargs.pop('offset', 0) + 1
+        kwargs['num_start'] = kwargs.pop('offset', None)
         xml = self._send_request('docs.search', query=query, **kwargs)
         owner = api_user
         if kwargs.get('scope', 'user') == 'user':
@@ -390,7 +392,7 @@ class User(Resource):
         may be max. 1000 of them), just stop iterating the generator object.
         """
         kwargs['num_results'] = kwargs.get('page_size', None) 
-        kwargs['num_start'] = kwargs.get('offset', 0) + 1
+        kwargs['num_start'] = kwargs.get('offset', None)
         owner = api_user
         if kwargs.get('scope', 'user') == 'user':
             owner = self

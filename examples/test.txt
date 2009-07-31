@@ -1,0 +1,1 @@
+This is an example text file used by the upload.py example script.
