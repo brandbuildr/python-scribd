@@ -17,7 +17,7 @@ Distributed under the new BSD License, see the
 accompanying LICENSE file for more information.
 """
 
-__version__ = '1.0.0'
+__version__ = '1.0.1'
 
 __all__ = ['NotReadyError', 'MalformedResponseError', 'ResponseError',
            'Resource', 'User', 'VirtualUser', 'Document', 'login',
