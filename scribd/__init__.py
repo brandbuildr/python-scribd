@@ -17,7 +17,7 @@ Distributed under the new BSD License, see the
 accompanying LICENSE file for more information.
 """
 
-__version__ = '1.0.1'
+__version__ = '1.1.0'
 
 __all__ = ['NotReadyError', 'MalformedResponseError', 'ResponseError',
            'Resource', 'User', 'VirtualUser', 'Document', 'login',
@@ -502,6 +502,10 @@ class VirtualUser(User):
     This is useful if Scribd is used as a backend for a platform with its
     own user authentication system.
     
+    Virtual users are also used to control access to the embedded documents
+    when using iPaper Secure. For more info about iPaper Secure visit:
+    http://www.scribd.com/publisher/ipaper_secure
+    
     Virtual users are created just by instantiating this class passing the
     name of the virtual user to the constructor. This will most probably
     be the name used by your own authentication system.
@@ -532,6 +536,40 @@ class VirtualUser(User):
     def get_autologin_url(self, next_path=''):
         """This method is not supported by virtual users."""
         raise NotImplementedError('autologin not supported by virtual users')
+
+    def get_access_list(self):
+        """This method can be used for tracking and verification purposes.
+        It returns a list of the secure documents that this virtual user is
+        currently allowed to access.
+
+        Note that calling [Document].set_access() will not insert a document
+        into this list (though it can remove one) - that can only be done with
+        the user viewing an active embed code.
+        
+        Returns:
+            A list of [Document] objects.
+        
+        This method is part of iPaper Secure. For more info about iPaper Secure visit:
+        http://www.scribd.com/publisher/ipaper_secure
+        """
+        xml = self._send_request('security.getUserAccessList',
+                                 user_identifier=self.my_user_id)
+        return [Document(result, api_user) for result in xml.get('resultset')]
+
+    def set_access(self, allowed):
+        """This method allows you to disable a user's access to secure documents,
+        or to re-enable it after a previous call. It is not necessary to grant
+        initial access to documents - that is done through the embed code.
+
+        Parameters:
+          allowed
+            If False, disables access. If True, re-enables access.
+
+        This method is part of iPaper Secure. For more info about iPaper Secure visit:
+        http://www.scribd.com/publisher/ipaper_secure
+        """
+        self._send_request('security.setAccess', user_identifier=self.my_user_id,
+                           allowed=allowed)
 
     def _get_id(self):
         return self.my_user_id
@@ -725,6 +763,39 @@ class Document(Resource):
                 title += '?secret_password=' + self.secret_password
         return 'http://www.scribd.com/doc/%s/%s' % (self.doc_id, title)
 
+    def get_access_list(self):
+        """This method can be used for tracking and verification purposes. It returns
+        a list of virtual users currently authorized to view this secure document.
+        
+        Returns:
+            A list of [VirtualUser] objects.
+        
+        This method is part of iPaper Secure. For more info about iPaper Secure visit:
+        http://www.scribd.com/publisher/ipaper_secure
+        """
+        xml = self._send_request('security.getDocumentAccessList', doc_id=self.doc_id)
+        return [VirtualUser(result.get('user_identifier').text) for result in xml.get('resultset')]
+
+    def set_access(self, user, allowed):
+        """This method allows you to disable a virtual user's access to this secure
+        document, or to re-enable it after a previous call. It is not necessary nor
+        possible to grant initial access to a document using this call - that is done
+        through the embed code.
+
+        Parameters:
+          user
+            Virtual user's name or [VirtualUser] object.
+          allowed
+            If False, disables access. If True, re-enables access.
+
+        This method is part of iPaper Secure. For more info about iPaper Secure visit:
+        http://www.scribd.com/publisher/ipaper_secure
+        """
+        if isinstance(user, VirtualUser):
+            user = user.my_user_id
+        self._send_request('security.setAccess', user_identifier=user, allowed=allowed,
+                           doc_id=self.doc_id)
+
     def _get_id(self):
         return self.doc_id
 
@@ -768,8 +839,10 @@ def send_request(method, **fields):
         else:
             if isinstance(v, unicode):
                 v = v.encode('utf8')
-            elif isinstance(v, tuple):
-                v = (v[0], str(v[1]))
+            elif isinstance(v, tuple): # file
+                v = (v[0], str(v[1])) # (data, name)
+            elif isinstance(v, bool):
+                v = str(int(v)) # '0' or '1'
             else:
                 v = str(v)
             fields[k] = v
@@ -872,7 +945,7 @@ def signup(username, password, email, name=None):
     Returns:
         A [User] object.
     """
-    return User(send_request('user.signup', username=username, password = password,
+    return User(send_request('user.signup', username=username, password=password,
                              email=email, name=name))
 
 

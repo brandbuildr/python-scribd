@@ -54,7 +54,17 @@ class Element(object):
         try:
             return Element(self._nodes[self.index(name)])
         except IndexError:
-            raise KeyError('%s is not in the sub-tags' % name)
+            raise KeyError(name)
+
+    def has_key(self, name):
+        """Returns True if at least one subelement with the
+        given name exists. Otherwise returns False.
+        """
+        try:
+            self.index(name)
+            return True
+        except IndexError:
+            return False
 
     def toxml(self):
         """Returns the element and all subelements as xml.
