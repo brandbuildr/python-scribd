@@ -246,7 +246,7 @@ class User(Resource):
             Refer to the "Parameters" section of:
             http://www.scribd.com/developers/api?method_name=docs.getList
           
-            Parameters "api_key", "api_sig", "session_key", "my_user_id"
+            Note. Parameters "api_key", "api_sig", "session_key", "my_user_id"
             are managed internally by the library.
           
         Returns:
@@ -267,10 +267,9 @@ class User(Resource):
             Refer to the "Parameters" section of:
             http://www.scribd.com/developers/api?method_name=docs.getList
 
-            Parameters "api_key", "api_sig", "session_key", "my_user_id"
-            are managed internally by the library.
-
-            Parameter "limit" is not supported.
+            Note. Parameters "api_key", "api_sig", "session_key", "my_user_id"
+            are managed internally by the library. Parameter "limit" is not
+            supported.
           
         Additional parameters:
           page_size
@@ -323,11 +322,9 @@ class User(Resource):
             Refer to the "Parameters" section of:
             http://www.scribd.com/developers/api?method_name=docs.search
           
-            Parameters "api_key", "api_sig", "session_key", "my_user_id"
-            are managed internally by the library.
-
-            Parameter "num_start" is not supported.
-            Parameter "num_results" is not supported.
+            Note. Parameters "api_key", "api_sig", "session_key", "my_user_id"
+            are managed internally by the library. Parameter "num_start" is not
+            supported. Parameter "num_results" is not supported.
           
         Additional parameters:
           offset
@@ -368,11 +365,9 @@ class User(Resource):
             Refer to the "Parameters" section of:
             http://www.scribd.com/developers/api?method_name=docs.search
           
-            Parameters "api_key", "api_sig", "session_key", "my_user_id"
-            are managed internally by the library.
-
-            Parameter "num_start" is not supported.
-            Parameter "num_results" is not supported.
+            Note. Parameters "api_key", "api_sig", "session_key", "my_user_id"
+            are managed internally by the library. Parameter "num_start" is not
+            supported. Parameter "num_results" is not supported.
           
         Additional parameters:
           offset
@@ -407,17 +402,16 @@ class User(Resource):
                 break
 
     def upload(self, file, name=None, **kwargs):
-        """Uploads a file object as a new document and returns the
-        corresponding document object.
+        """Uploads a file as a new document and returns the corresponding
+        [Document] object.
         
         Parameters:
             Refer to the "Parameters" section of:
             http://www.scribd.com/developers/api?method_name=docs.upload
 
-            Parameters "api_key", "api_sig", "session_key", "my_user_id"
-            are managed internally by the library.
-
-            Parameter "file" is documented below.
+            Note. Parameters "api_key", "api_sig", "session_key", "my_user_id"
+            are managed internally by the library. Parameter "file" is
+            documented below.
 
           file
             (required) File-alike object to upload. The file is loaded
@@ -453,10 +447,9 @@ class User(Resource):
             Refer to the "Parameters" section of:
             http://www.scribd.com/developers/api?method_name=docs.upload
 
-            Parameters "api_key", "api_sig", "session_key", "my_user_id"
-            are managed internally by the library.
-            
-            Parameter "file" is not supported.
+            Note. Parameters "api_key", "api_sig", "session_key", "my_user_id"
+            are managed internally by the library. Parameter "file" is not
+            supported.
 
           url
             (required) A URL of the document to upload.
@@ -482,7 +475,7 @@ class User(Resource):
             Refer to the "Parameters" section of:
             http://www.scribd.com/developers/api?method_name=user.getAutoSigninUrl
 
-            Parameters "api_key", "api_sig", "session_key", "my_user_id"
+            Note. Parameters "api_key", "api_sig", "session_key", "my_user_id"
             are managed internally by the library.
 
         Returns:
@@ -661,7 +654,7 @@ class Document(Resource):
             Refer to the "Parameters" section of:
             http://www.scribd.com/developers/api?method_name=docs.getDownloadUrl
 
-            Parameters "api_key", "api_sig", "session_key", "my_user_id",
+            Note. Parameters "api_key", "api_sig", "session_key", "my_user_id",
             "doc_id" are managed internally by the library.
           
         Returns:
@@ -714,7 +707,7 @@ class Document(Resource):
         Parameters:
             Refer to the [User].upload() method.
           
-            Parameter "rev_id" is managed internally by the library.
+            Note. Parameter "rev_id" is managed internally by the library.
 
         Requires the document owner to be the user that uploaded this
         document.
@@ -729,7 +722,7 @@ class Document(Resource):
         Parameters:
             Refer to the [User].upload_from_url() method.
 
-            Parameter "rev_id" is managed internally by the library.
+            Note. Parameter "rev_id" is managed internally by the library.
 
         Requires the document owner to be the user that uploaded this
         document.
